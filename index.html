@@ -1,0 +1,1260 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
+<title>Ладога КДТ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&family=Unbounded:wght@500;700&display=swap">
+<style>
+/* Layout: пульт диспетчера — слева экран (радар / график ПК / табличный график), справа эфир с полем передачи; на телефоне — экран сверху, эфир снизу */
+:root {
+  --bg: #e7e4ec;        /* светлый «дневной» фон КДТ «Навигатор» */
+  --panel: #f5f3f8;
+  --paper: #ffffff;     /* бумага графика */
+  --ink: #1d1a2c;
+  --muted: #6a6480;
+  --line: #d3cddc;
+  --accent: #4a3dbd;    /* фиолетовые трассы как на экране КДТ */
+  --accent-soft: #e2defa;
+  --sector: #e9bccb;    /* розовые зоны */
+  --route: #8d86d8;
+  --target: #138a4e;
+  --warn: #c27412;
+  --bad: #c23649;
+  --good: #1b8a52;
+  --callout: #e0722a;   /* оранжевые выноски методички */
+  --evs: #e9e7ee;       /* серая полоса реплик ЭВС, как в ФРО */
+  --radar-bg: #ece9f1;
+  --radar-grid: #d6d0df;
+  --font-ui: "IBM Plex Sans Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-data: "IBM Plex Mono", "Consolas", "Menlo", monospace;
+  --font-display: "Unbounded", "IBM Plex Sans Condensed", sans-serif;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111019; --panel: #1a1925; --paper: #f2f0f6; --ink: #e9e6f3; --muted: #9a94b2; --line: #2d2a3e;
+  --accent: #9a8fff; --accent-soft: #2a2650; --sector: #5b2b42; --route: #6a62c4; --target: #3ddc8a; --warn: #f0a640;
+  --bad: #ff6b7d; --good: #4fd18c; --callout: #f08a40; --evs: #232131; --radar-bg: #0f1420; --radar-grid: #1c2536; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #111019; --panel: #1a1925; --paper: #f2f0f6; --ink: #e9e6f3; --muted: #9a94b2; --line: #2d2a3e;
+  --accent: #9a8fff; --accent-soft: #2a2650; --sector: #5b2b42; --route: #6a62c4; --target: #3ddc8a; --warn: #f0a640;
+  --bad: #ff6b7d; --good: #4fd18c; --callout: #f08a40; --evs: #232131; --radar-bg: #0f1420; --radar-grid: #1c2536; color-scheme: dark; }
+html, body, #app { height: 100%; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.4; }
+* { box-sizing: border-box; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.wrap { padding-inline: 16px; padding-block: 12px; max-width: 1480px; margin: 0 auto; }
+
+/* ── шапка */
+.top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding-block: 10px; }
+.brand { font-family: var(--font-display); font-weight: 700; font-size: 17px; letter-spacing: .02em; display: flex; align-items: baseline; gap: 8px; }
+.brand small { font-family: var(--font-data); font-weight: 500; font-size: 11px; color: var(--muted); letter-spacing: .08em; }
+.top .sp { flex: 1; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; white-space: nowrap; }
+.chip b { font-weight: 600; }
+.clock { font-family: var(--font-data); font-weight: 600; font-size: 22px; letter-spacing: .04em; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 7px 12px; font-size: 14px; }
+.btn:hover { border-color: var(--accent); }
+.btn.pri { background: var(--accent); color: var(--paper); border-color: var(--accent); font-weight: 600; }
+.btn.ghost { background: transparent; }
+.btn.sm { padding: 4px 9px; font-size: 13px; }
+.btn[disabled] { opacity: .45; cursor: default; }
+
+/* ── главный экран */
+.home { display: grid; gap: 22px; padding-block: 8px 40px; }
+.hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 28px; align-items: center; }
+.hero h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 5vw, 54px); line-height: 1.02; margin: 0 0 12px; text-wrap: balance; letter-spacing: -.01em; }
+.hero h1 span { color: var(--accent); }
+.hero p { margin: 0; max-width: 58ch; color: var(--muted); font-size: 16px; }
+.hero canvas { width: 100%; max-width: 100%; aspect-ratio: 1; border-radius: 50%; background: var(--radar-bg); border: 1px solid var(--line); }
+.stats { display: flex; gap: 22px; margin-top: 18px; flex-wrap: wrap; }
+.stats div { display: grid; }
+.stats b { font-family: var(--font-data); font-size: 22px; }
+.stats span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.setup { display: grid; gap: 18px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+.setup h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 600; }
+.seg { display: flex; gap: 8px; flex-wrap: wrap; }
+.opt { border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 9px 13px; text-align: left; min-width: 0; }
+.opt[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.opt b { display: block; font-weight: 600; }
+.opt small { display: block; color: var(--muted); font-size: 12.5px; }
+.roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+.role-group { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); grid-column: 1 / -1; margin-top: 4px; }
+.go { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.links { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ── упражнение */
+.ex { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr); gap: 14px; height: calc(100% - 58px); padding-bottom: 12px; }
+.screen, .radio { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
+.tabs { display: flex; gap: 2px; padding: 6px; border-bottom: 1px solid var(--line); align-items: center; overflow-x: auto; scrollbar-width: none; }
+.tab { white-space: nowrap; }
+.tab { border: 0; background: transparent; padding: 6px 12px; border-radius: 7px; font-weight: 500; color: var(--muted); }
+.tab[aria-selected="true"] { background: var(--bg); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.tab .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--callout); margin-left: 6px; vertical-align: middle; }
+.view { flex: 1; min-height: 0; position: relative; }
+#radar { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
+.rctl { position: absolute; right: 10px; top: 10px; display: grid; gap: 6px; }
+.rctl button { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); font-weight: 600; }
+.rinfo { position: absolute; left: 10px; bottom: 10px; font-family: var(--font-data); font-size: 12px; background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; line-height: 1.5; }
+
+/* график ПК — бумага методички */
+.gwrap { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.gbar { display: flex; gap: 6px; padding: 8px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+.tool { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 5px 10px; font-family: var(--font-data); font-size: 13px; }
+.tool[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.task { margin-left: auto; font-size: 13px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.task .pill { background: var(--callout); color: #fff; border-radius: 6px; padding: 3px 8px; font-weight: 600; }
+.task .ok { color: var(--good); font-weight: 600; }
+.gscroll { flex: 1; overflow: auto; background: var(--paper); }
+#graph { display: block; }
+#graph text { font-family: var(--font-data); }
+.gmsg { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); background: var(--ink); color: var(--panel); padding: 7px 14px; border-radius: 8px; font-size: 13.5px; max-width: 92%; pointer-events: none; transition: opacity .25s; }
+.gmsg.bad { background: var(--bad); color: #fff; }
+.pop { position: absolute; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; box-shadow: 0 8px 28px rgba(20, 16, 40, .22); display: grid; gap: 8px; z-index: 5; width: min(320px, 92%); }
+.pop label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+.pop input { font-family: var(--font-data); font-size: 15px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+.pop .row { display: flex; gap: 8px; justify-content: flex-end; }
+.pop .err { color: var(--bad); font-size: 13px; }
+
+/* табличный график */
+.tbl { padding: 12px; overflow: auto; position: absolute; inset: 0; }
+.tbl table { border-collapse: collapse; width: 100%; min-width: 560px; background: var(--paper); color: #1d1a2c; font-family: var(--font-data); font-size: 13.5px; }
+.tbl th, .tbl td { border: 1px solid #9c97ab; padding: 6px 8px; text-align: left; }
+.tbl th { background: #eeedf3; font-family: var(--font-ui); font-weight: 600; }
+.tbl input { width: 100%; font-family: var(--font-data); font-size: 13.5px; border: 1px dashed var(--callout); background: #fff8f2; padding: 4px 5px; color: #1d1a2c; }
+.tbl .note { color: var(--muted); font-size: 13px; margin: 10px 0 0; max-width: 70ch; }
+.strip { padding: 14px; display: grid; gap: 10px; font-family: var(--font-data); font-size: 14px; position: absolute; inset: 0; overflow: auto; }
+.strip .card { background: var(--paper); color: #1d1a2c; border-left: 6px solid var(--accent); border-radius: 6px; padding: 12px 14px; display: grid; gap: 4px; }
+.strip .card .big { font-size: 22px; font-weight: 600; }
+
+/* эфир */
+.rhead { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.rhead .freq { font-family: var(--font-data); font-size: 18px; font-weight: 600; }
+.rhead .st { font-size: 13px; color: var(--muted); }
+.log { flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; scroll-behavior: smooth; }
+.ln { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; padding: 5px 8px; border-radius: 6px; font-size: 14px; animation: in .25s ease-out; }
+@keyframes in { from { opacity: .2; transform: translateY(4px); } }
+.ln .who { font-family: var(--font-data); font-size: 11px; color: var(--muted); padding-top: 2px; line-height: 1.25; }
+.ln .who b { display: block; color: var(--ink); font-size: 12px; }
+.ln.evs { background: var(--evs); }
+.ln.coord { border-left: 3px solid var(--callout); padding-left: 6px; }
+.ln.coord .tx { font-style: italic; }
+.ln.me { background: var(--accent-soft); }
+.ln .tx { min-width: 0; overflow-wrap: anywhere; }
+.ln .fb { grid-column: 2; font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.fb .e { background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); border-radius: 5px; padding: 1px 6px; }
+.fb .w { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); border-radius: 5px; padding: 1px 6px; }
+.fb .g { color: var(--good); font-weight: 600; }
+.fb .ref { color: var(--muted); width: 100%; }
+.sep { text-align: center; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 10px 0 4px; display: flex; gap: 8px; align-items: center; }
+.sep::before, .sep::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.ptt { border-top: 1px solid var(--line); padding: 10px; display: grid; gap: 8px; background: var(--panel); }
+.cue { font-size: 13.5px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.cue .to { font-family: var(--font-data); font-weight: 600; color: var(--accent); }
+.cue .hintbox { width: 100%; font-family: var(--font-data); font-size: 13px; background: var(--bg); border: 1px dashed var(--line); border-radius: 6px; padding: 6px 8px; }
+.inrow { display: flex; gap: 8px; align-items: flex-end; }
+#say { flex: 1; min-width: 0; resize: none; font-family: var(--font-data); font-size: 15px; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); min-height: 44px; max-height: 140px; }
+#say:disabled { opacity: .55; }
+.tx-btn { height: 44px; padding: 0 16px; border-radius: 10px; border: 0; background: var(--accent); color: var(--paper); font-weight: 600; letter-spacing: .04em; }
+.tx-btn:disabled { opacity: .4; }
+.waiting { font-size: 13px; color: var(--muted); }
+
+/* итоги */
+.modal { position: fixed; inset: 0; background: rgba(15, 12, 30, .55); display: grid; place-items: center; z-index: 20; padding: 16px; }
+.sheet { background: var(--panel); border-radius: 16px; padding: 22px; width: min(560px, 100%); max-height: 92%; overflow: auto; display: grid; gap: 14px; border: 1px solid var(--line); }
+.grade { font-family: var(--font-display); font-size: 64px; line-height: 1; color: var(--accent); }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.kv div { background: var(--bg); border-radius: 10px; padding: 10px; }
+.kv b { font-family: var(--font-data); font-size: 20px; display: block; }
+.kv span { font-size: 12px; color: var(--muted); }
+.errs { margin: 0; padding-left: 18px; font-size: 14px; display: grid; gap: 4px; }
+.errs i { color: var(--muted); font-style: normal; font-family: var(--font-data); font-size: 12.5px; }
+
+/* сборник ФРО — как лист сборника */
+.book { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; padding-block: 8px 40px; }
+.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; display: grid; gap: 6px; }
+.toc a { color: var(--ink); text-decoration: none; padding: 5px 8px; border-radius: 6px; font-size: 14px; }
+.toc a:hover { background: var(--panel); }
+.sheetpaper { background: var(--paper); color: #1d1a2c; border-radius: 6px; padding: 26px clamp(14px, 4vw, 40px); box-shadow: 0 1px 0 var(--line); max-width: 860px; }
+.sheetpaper h2 { margin: 0 0 4px; background: #1d1a2c; color: #fff; font-family: var(--font-ui); font-weight: 600; font-size: 20px; padding: 6px 14px; text-align: center; }
+.sheetpaper h3 { display: flex; align-items: center; gap: 12px; font-family: var(--font-ui); font-weight: 700; font-size: 19px; margin: 26px 0 10px; }
+.sheetpaper h3::before, .sheetpaper h3::after { content: ""; flex: 1; height: 2px; background: #1d1a2c; }
+.fro { display: grid; grid-template-columns: 52px minmax(0, 1fr); font-family: "Times New Roman", "PT Serif", Georgia, serif; font-size: 16.5px; }
+.fro > div { padding: 4px 8px; }
+.fro .s { font-family: var(--font-ui); font-weight: 600; font-size: 14px; text-align: right; }
+.fro .evs { background: #d9d8de; }
+.fro .hid { color: transparent; background: repeating-linear-gradient(90deg, #ece9f3 0 8px, #e2deea 8px 16px); border-radius: 4px; cursor: pointer; user-select: none; }
+.ctab { width: 100%; border-collapse: collapse; margin: 10px 0; font-family: "Times New Roman", "PT Serif", Georgia, serif; font-size: 16px; }
+.ctab th, .ctab td { border: 1px solid #1d1a2c; padding: 5px 8px; vertical-align: top; width: 50%; }
+.ctab th { font-family: var(--font-ui); }
+.ref { display: grid; gap: 16px; padding-block: 8px 40px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
+.ref pre { margin: 0; white-space: pre-wrap; font-family: var(--font-data); font-size: 13px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; overflow-x: auto; }
+
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; }
+  .hero canvas { max-width: 300px; justify-self: center; }
+  .ex { grid-template-columns: 1fr; grid-template-rows: minmax(300px, 48vh) minmax(0, 1fr); height: auto; min-height: calc(100% - 58px); }
+  .radio { min-height: 360px; }
+  .book { grid-template-columns: 1fr; }
+  .toc { position: static; display: flex; flex-wrap: wrap; }
+  .clock { font-size: 18px; }
+  .exchip { display: none; }
+  .rinfo { font-size: 10.5px; padding: 4px 7px; }
+  .ex { height: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .ln { animation: none; } .log { scroll-behavior: auto; } }
+</style>
+</head><body><div id="app"></div><script>
+const POINTS={"LADOGA":[613,575,"airport"],"PORVO":[445,329,"waypoint"],"FORTU":[489,491,"waypoint"],"GRANI":[274,540,"waypoint"],"OREMI":[486,598,"waypoint"],"SEREN":[404,620,"waypoint"],"MININ":[306,667,"waypoint"],"MININ2":[313,694,"waypoint"],"SOBOR":[428,666,"waypoint"],"ORLON":[510,685,"waypoint"],"ARBAT":[603,680,"waypoint"],"VORON":[809,342,"waypoint"],"OLEND":[857,372,"waypoint"],"DROBNY":[670,506,"ndb"],"KOPNA":[722,543,"waypoint"],"GORIN":[780,582,"waypoint"],"KORKI":[755,636,"waypoint"],"PELMI":[689,653,"waypoint"],"CIROV":[720,682,"waypoint"],"OZERO":[907,607,"waypoint"],"BEREZ":[1073,580,"waypoint"],"BORIS":[1073,715,"waypoint"],"VEGAN":[208,716,"waypoint"],"TARTUR":[305,769,"vor"],"SILIN":[459,745,"waypoint"],"CERNI":[423,794,"waypoint"],"MOKSA":[593,809,"waypoint"],"RUBEN":[500,843,"waypoint"],"POMOR":[361,867,"waypoint"],"PESKI":[431,865,"vor"],"PALEN":[166,923,"waypoint"],"KIEV":[221,969,"waypoint"],"TESTO":[548,958,"waypoint"],"HORSK":[633,977,"waypoint"],"NOVIK":[684,777,"vor"],"SELEN":[661,856,"waypoint"],"TREST":[790,752,"waypoint"],"ZORIN":[855,747,"waypoint"],"BIRUS":[903,846,"waypoint"],"UNNAMED1":[882,874,"waypoint"],"PIRSK":[953,888,"waypoint"],"G_OSLO":[418,244,"gate"],"G_HELSINKI":[173,477,"gate"],"G_TALLINN":[170,659,"gate"],"G_KIEV":[119,1034,"gate"],"G_VLUKI":[692,1075,"gate"],"G_VOLOGDA":[1162,665,"gate"],"G_EKB":[1189,520,"gate"],"G_PETROZAVODSK":[904,223,"gate"]};
+const AIRWAYS={"OSLO":["G_OSLO","PORVO","FORTU","LADOGA"],"HELSINKI":["G_HELSINKI","GRANI","SEREN","SILIN"],"GRANI_FORTU":["GRANI","FORTU"],"SEREN_LADOGA":["SEREN","OREMI","LADOGA"],"TALLINN":["G_TALLINN","VEGAN","MININ2","SOBOR","ORLON","LADOGA"],"PETROZ_1":["G_PETROZAVODSK","VORON","KOPNA","LADOGA"],"PETROZ_2":["G_PETROZAVODSK","OLEND","GORIN","KORKI","CIROV","NOVIK","SELEN","HORSK","G_VLUKI"],"EKB":["G_EKB","BEREZ","OZERO","KORKI"],"VOLOGDA":["G_VOLOGDA","BORIS","ZORIN","TREST","NOVIK","MOKSA","RUBEN"],"MOSCOW":["PIRSK","BIRUS","TREST","KORKI"],"LADOGA_SE":["LADOGA","PELMI","CIROV"],"LADOGA_S":["LADOGA","ARBAT","MOKSA"],"KIEV_1":["G_KIEV","PALEN","TARTUR","MININ","SEREN"],"KIEV_2":["G_KIEV","KIEV","POMOR","PESKI","RUBEN"],"TARTUR_SILIN":["TARTUR","SILIN","ORLON"],"CERNI":["POMOR","CERNI","SILIN"],"VLUKI":["G_VLUKI","TESTO","RUBEN","SILIN","SOBOR"],"ORLON_RUBEN":["ORLON","RUBEN"]};
+const SECTORS={"boundaries":[[[274,540],[445,329],[631,321],[809,342],[857,372],[921,411],[1053,514],[1066,521],[1080,583],[1081,721],[965,822],[763,922],[633,979],[587,974],[540,966],[464,924],[361,867],[335,792],[316,711],[306,667],[274,540]],[[69,545],[274,540]],[[543,315],[537,169]],[[631,321],[626,501]],[[489,491],[626,501],[722,535],[780,582],[772,609],[720,682],[603,686],[510,685],[496,655],[486,598],[489,491]],[[490,636],[327,757]],[[327,757],[98,808]],[[450,927],[347,1063]],[[745,675],[965,822]],[[1036,765],[1163,851]],[[763,922],[882,1056]],[[1002,469],[1146,303]]],"approach_circle":{"center":[613,575],"r":57},"labels":[{"text":"РЦ-3 126.9","xy":[543,790]},{"text":"РЦ-4 120.9","xy":[384,438]},{"text":"РЦ-1 134.1","xy":[877,499]},{"text":"РЦ-2 135.6","xy":[754,825]},{"text":"ПОДХОД-2 125.2","xy":[547,645]},{"text":"ПОДХОД-1 129.8","xy":[706,609]}]};
+// ═══ ЯДРО ТРЕНАЖЁРА «ЛАДОГА» — сценарии ФРО 2025, проверка фраз, график ПК ═══
+// Масштаб карты по методичке: NOVIK 157°/156 км, PESKI 207°/247 км, TARTU 233°/258 км от LDM → 1,39 px/км.
+const PX_PER_KM = 1.39, MAG_VAR = 11;
+const xy = n => [POINTS[n][0], POINTS[n][1]];
+const dkm = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) / PX_PER_KM;
+const tbrg = (a, b) => ((Math.atan2(b[0] - a[0], -(b[1] - a[1])) * 180 / Math.PI) + 360) % 360;
+const mbrg = (a, b) => (tbrg(a, b) - MAG_VAR + 360) % 360;
+function azDist(pos) { const c = xy('LADOGA'); return [Math.round(mbrg(c, pos)) % 360 || 360, Math.round(dkm(c, pos))]; }
+const routeLen = names => names.slice(1).reduce((s, n, i) => s + dkm(xy(names[i]), xy(n)), 0);
+const mm = t => String(((Math.round(t) % 60) + 60) % 60).padStart(2, '0');
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const pick = (r, arr) => arr[Math.floor(r() * arr.length)];
+const rint = (r, a, b) => a + Math.floor(r() * (b - a + 1));
+
+class Track {
+  constructor(route, known) {
+    this.route = route; const pts = route.map(xy); const cum = [0];
+    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    const idx = Object.entries(known).map(([n, t]) => [route.indexOf(n), t]).sort((a, b) => a[0] - b[0]);
+    const times = new Array(route.length).fill(null); idx.forEach(([i, t]) => times[i] = t);
+    for (let k = 0; k < idx.length - 1; k++) { const [i1, t1] = idx[k], [i2, t2] = idx[k + 1];
+      for (let j = i1 + 1; j < i2; j++) times[j] = t1 + (cum[j] - cum[i1]) / ((cum[i2] - cum[i1]) || 1) * (t2 - t1); }
+    let [ia, ta] = idx[idx.length - 2], [ib, tb] = idx[idx.length - 1]; let v = (cum[ib] - cum[ia]) / Math.max(tb - ta, .1);
+    for (let j = ib + 1; j < route.length; j++) times[j] = tb + (cum[j] - cum[ib]) / v;
+    [ia, ta] = idx[0]; [ib, tb] = idx[1]; v = (cum[ib] - cum[ia]) / Math.max(tb - ta, .1);
+    for (let j = 0; j < ia; j++) times[j] = ta - (cum[ia] - cum[j]) / v;
+    this.pts = pts; this.times = times;
+  }
+  pos(t) { const ts = this.times, ps = this.pts;
+    if (t <= ts[0]) return [ps[0], this.hdg(0)];
+    for (let i = 0; i < ts.length - 1; i++) if (t >= ts[i] && t <= ts[i + 1]) { const f = (t - ts[i]) / ((ts[i + 1] - ts[i]) || 1), a = ps[i], b = ps[i + 1]; return [[a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], this.hdg(i)]; }
+    return [ps[ps.length - 1], this.hdg(ps.length - 2)]; }
+  hdg(i) { i = Math.max(0, Math.min(i, this.pts.length - 2)); return tbrg(this.pts[i], this.pts[i + 1]); }
+  timeAt(name) { return this.times[this.route.indexOf(name)]; }
+}
+
+// ── пункты ОВД
+const UNIT_NAMES = { 'ЭВС': 'Экипаж', 'АДП': 'АДП', 'ДПР': 'Деливери/Руление', 'СДП': 'Старт', 'ПДП': 'Посадка', 'ДПК': 'Круг', 'ДПП': 'Подход', 'РЦ': 'Контроль', 'СМЕЖ': 'Смежный РЦ' };
+const ROLES = [
+  { id: 'РЦ-ПК', unit: 'РЦ', kinds: ['coord'], graph: true, title: 'Контроль · ПК', sub: 'визуализированный график и координация' },
+  { id: 'РЦ-РЛК', unit: 'РЦ', kinds: ['radio'], table: true, title: 'Контроль · РЛК', sub: 'радар, эфир с экипажем, табличный график' },
+  { id: 'РЦ', unit: 'РЦ', graph: true, title: 'Контроль · РЛК + ПК', sub: 'весь сектор РЦ в одиночку' },
+  { id: 'ДПП-ПК', unit: 'ДПП', kinds: ['coord'], graph: true, title: 'Подход · ПК', sub: 'график Подхода и координация' },
+  { id: 'ДПП', unit: 'ДПП', graph: true, title: 'Подход · РЛК + ПК', sub: 'весь сектор Подхода' },
+  { id: 'ДПК', unit: 'ДПК', title: 'Круг', sub: 'ДПК 120,6' },
+  { id: 'СДП', unit: 'СДП', title: 'Старт', sub: 'СДП 118,1' },
+  { id: 'ПДП', unit: 'ПДП', title: 'Посадка', sub: 'ПДП 118,1' },
+  { id: 'ДПР', unit: 'ДПР', title: 'Деливери / Руление', sub: 'ДПР 118,9 / 119,0' },
+  { id: 'ЭВС', unit: 'ЭВС', title: 'Экипаж ВС', sub: 'пилот: доклады и квитанции' },
+];
+
+const DIRECTIONS = {
+  MOSCOW: { key: 'MOSCOW', city: 'Москва', gen: 'Москвы', na: 'на Москву', sidFix: 'PELMI', starFix: 'PELMI', starPt: 'LG747', appN: 1, appFreq: '129,8', accN: 2, accFreq: '135,6', entry: 'CIROV', mid: 'TREST', exit: 'BIRUS', adj: 'Москва-Контроль', adjFreq: '127,5', route: ['LADOGA', 'PELMI', 'CIROV', 'TREST', 'BIRUS', 'PIRSK'] },
+  VLUKI: { key: 'VLUKI', city: 'Великие Луки', gen: 'Великих Лук', na: 'на Великие Луки', sidFix: 'ORLON', starFix: 'ORLON', starPt: 'LG744', appN: 2, appFreq: '125,2', accN: 3, accFreq: '126,9', entry: 'ORLON', mid: 'RUBEN', exit: 'TESTO', adj: 'Великие Луки-Контроль', adjFreq: '134,3', route: ['LADOGA', 'ORLON', 'SILIN', 'RUBEN', 'TESTO', 'G_VLUKI'] },
+  KIEV: { key: 'KIEV', city: 'Киев', gen: 'Киева', na: 'на Киев', sidFix: 'ORLON', starFix: 'ORLON', starPt: 'LG744', appN: 2, appFreq: '125,2', accN: 3, accFreq: '126,9', entry: 'ORLON', mid: 'CERNI', exit: 'POMOR', adj: 'Рига-Контроль', adjFreq: '133,2', route: ['LADOGA', 'ORLON', 'SILIN', 'CERNI', 'POMOR', 'KIEV', 'G_KIEV'] },
+};
+// ПОД на графиках секторов (порядок слева направо — как на локаторе, рис. 8–9 методички)
+const GRAPH_PODS = {
+  'РЦ-2': ['ARBAT', 'MOKSA', 'LADOGA', 'HORSK', 'SELEN', 'PELMI', 'NOVIK', 'CIROV', 'KORKI', 'TREST', 'ZORIN', 'BIRUS'],
+  'РЦ-3': ['TARTUR', 'POMOR', 'CERNI', 'SOBOR', 'SILIN', 'ORLON', 'RUBEN', 'TESTO', 'MOKSA', 'LADOGA', 'HORSK'],
+  'ДПП-1': ['LADOGA', 'ARBAT', 'PELMI', 'CIROV', 'KORKI', 'GORIN', 'KOPNA'],
+  'ДПП-2': ['SEREN', 'SOBOR', 'OREMI', 'FORTU', 'ORLON', 'ARBAT', 'LADOGA'],
+};
+const AIRCRAFT = [['Ил-76', true, '76'], ['Ту-154', false, '85'], ['Ту-134', false, '65'], ['Ил-86', true, '86'], ['Ан-148', false, '61'], ['Як-42', false, '42']];
+const AIRLINES = ['СДМ', 'АФЛ', 'СВР', 'ЮТА', 'ПЛК'];
+const ATIS = ['ALFA', 'BRAVO', 'CHARLIE', 'DELTA', 'ECHO', 'FOXTROT', 'GOLF', 'HOTEL'];
+
+const parity = mag => (mag >= 0 && mag < 180) ? 'odd' : 'even';
+const levels = p => p === 'odd' ? [[290, 310, 330, 350], [170, 190, 210]] : [[300, 320, 340], [180, 200, 220]];
+const parityHint = fl => ((fl / 10) % 2 === 1 ? 'нечётный — МПУ 0–179°' : 'чётный — МПУ 180–359°');
+
+function commonVars(r) {
+  const [type, heavy, reg] = pick(r, AIRCRAFT); const cs = `${pick(r, AIRLINES)}-${rint(r, 101, 989)}`;
+  let sq; do { sq = Array.from({ length: 4 }, () => rint(r, 0, 7)).join(''); } while (['7500', '7600', '7700', '2000', '0000'].includes(sq));
+  const wd = rint(r, 6, 14) * 10, ws = rint(r, 2, 7);
+  return { cs, type, heavy, reg: reg + rint(r, 100, 999), sq, atis: pick(r, ATIS), qnh: rint(r, 998, 1030), stand: rint(r, 101, 160),
+    wind: `ветер ${String(wd).padStart(3, '0')} градусов ${ws} м/с` + (r() < .3 ? ` (порывы ${ws + 4} м/с)` : '') };
+}
+
+class Builder {
+  constructor(track) { Object.assign(this, { steps: [], tasks: [], t: 0, fl: 0, cfl: 0, stage: '', track }); }
+  at(o) { Object.assign(this, o); return this; }
+  say(speaker, listener, text, opt = {}) {
+    const meta = {};
+    if (opt.azd) { const [p] = this.track.pos(this.t); [meta.az, meta.dist] = azDist(p);
+      if (opt.noAz) delete meta.az;
+      text = text.replace('{AZ}', meta.az).replace('{DIST}', meta.dist); }
+    this.steps.push({ speaker, listener, text, t: this.t, fl: this.fl, cfl: this.cfl, kind: opt.kind || 'radio', stage: this.stage, cue: opt.cue || '', meta });
+    return this;
+  }
+  coord(a, b, lines, cue = '') { lines.forEach((l, i) => this.say(i % 2 ? b : a, i % 2 ? a : b, l, { kind: 'coord', cue: i ? '' : cue })); return this; }
+  // задача ПК на визуализированном графике сектора (выполняется после последнего добавленного шага)
+  mark(sector, type, o) { this.tasks.push({ sector, type, after: this.steps.length - 1, ...o }); return this; }
+  // задача РЛК / ПК в табличном графике
+  table(sector, row) { this.tasks.push({ sector, type: 'table', after: this.steps.length - 1, row }); return this; }
+}
+
+function buildDeparture(dkey, seed, ov = {}) {
+  const r = rng(seed); const d = DIRECTIONS[dkey || pick(r, Object.keys(DIRECTIONS))];
+  const v = commonVars(r); const [cr, ap] = levels(parity(mbrg(xy('LADOGA'), xy(d.route[d.route.length - 1]))));
+  v.flCr = pick(r, cr.slice(0, 2)); v.flApp = pick(r, ap);
+  const R = d.route, t0 = rint(r, 0, 25); v.t0 = t0; v.tDep = t0 + 5;
+  v.tEntry = v.tDep + Math.max(8, Math.round(routeLen(R.slice(0, R.indexOf(d.entry) + 1)) / 420 * 60) + 3);
+  v.tMid = v.tEntry + Math.max(5, Math.round(routeLen(R.slice(R.indexOf(d.entry), R.indexOf(d.mid) + 1)) / 700 * 60));
+  v.tExit = v.tMid + Math.max(5, Math.round(routeLen(R.slice(R.indexOf(d.mid), R.indexOf(d.exit) + 1)) / 760 * 60));
+  Object.assign(v, ov);
+  const track = new Track(R, { LADOGA: v.tDep, [d.entry]: v.tEntry, [d.mid]: v.tMid, [d.exit]: v.tExit });
+  const { cs, type, reg, sq, flCr: fc, flApp: fa } = v, sid = `${d.sidFix} 2C`, na = d.na, csH = cs + (v.heavy ? ', тяжёлый' : ''), typeH = type + (v.heavy ? ' (тяжёлый)' : '');
+  const APP = `ДПП-${d.appN}`, ACC = `РЦ-${d.accN}`;
+  const b = new Builder(track);
+
+  b.at({ t: t0, fl: 0, stage: 'ДПР' });
+  b.coord('АДП', 'ДПР', [`Деливери – АДП, запишите ${na} в ${mm(v.tDep)} минут.`, 'Пишу.', `${cs}, ${type}, ${reg}, эшелон ${fc}.`, `${cap(na)} в ${mm(v.tDep)} минут, ${cs}, ${type}, ${reg}, эшелон ${fc}.`], 'АДП передаёт план вылета');
+  b.coord('ДПР', 'ДПП', [`Подход-${d.appN} – Рулению, запишите ${na} в ${mm(v.tDep)} минут.`, 'Пишу.']);
+  b.mark(APP, 'cut', { pod: 'LADOGA', tm: v.tDep, hint: `вылет ${mm(v.tDep)}′ — отсечка на ПОД Ладога` });
+  b.say('ДПР', 'ДПП', `${cs}, ${type}, ${reg}, эшелон ${fc}, выход ${d.sidFix}, сквок ${sq}.`, { kind: 'coord' });
+  b.mark(APP, 'form', { fields: { cs, reg, signed: String(fc), dest: d.city } });
+  b.say('ДПП', 'ДПР', `${cap(na)} в ${mm(v.tDep)} минут, ${cs}, ${type}, эшелон ${fc}, ${sid}, сквок ${sq}.`, { kind: 'coord' });
+  b.say('ЭВС', 'ДПР', `Ладога-Деливери, ${cs}, стоянка ${v.stand}, сообщите условия выхода ${na}.`);
+  b.say('ДПР', 'ЭВС', `${cs}, Ладога-Деливери, разрешено ${na}, ВПП-10 левая, через ${sid}, первоначальный набор 600 футов, после вылета работать с Ладога-Круг 120,6, код ответчика ${sq}.`, { cue: 'Разрешение на выход: маршрут, ВПП, SID, набор, частота Круга, сквок' });
+  b.say('ЭВС', 'ДПР', `Разрешено ${na}, ВПП-10 левая, ${sid}, первоначальный набор 600 футов, после вылета работать с Ладога-Круг 120,6, код ответчика ${sq}, ${cs}.`);
+  b.say('ДПР', 'ЭВС', `${cs}, записано верно, работайте с Ладога-Руление – 119,0.`);
+  b.say('ЭВС', 'ДПР', `Работаем с Ладога-Руление – 119,0, ${cs}.`);
+  b.at({ t: t0 + 1 });
+  b.say('ЭВС', 'ДПР', `Ладога-Руление, ${cs}, ${typeH}, стоянка ${v.stand}, информация ${v.atis}, разрешите запуск.`);
+  b.say('ДПР', 'ЭВС', `${cs}, Ладога-Руление, запуск разрешаю.`);
+  b.say('ЭВС', 'ДПР', `Запуск разрешили, ${cs}.`);
+  b.at({ t: t0 + 2 });
+  b.say('ЭВС', 'ДПР', `Ладога-Руление, ${cs}, стоянка ${v.stand}, разрешите предварительный.`);
+  b.say('ДПР', 'ЭВС', `${cs}, разрешаю предварительный ВПП-10 левая по РД CHARLIE, магистральная BRAVO, РД BRAVO 5.`, { cue: 'Руление на предварительный: CHARLIE – BRAVO – BRAVO 5' });
+  b.say('ЭВС', 'ДПР', `Разрешили предварительный ВПП-10 левая по РД CHARLIE, магистральная BRAVO, РД BRAVO 5, ${cs}.`);
+  b.at({ t: t0 + 4 });
+  b.say('ЭВС', 'ДПР', `${cs}, на предварительном ВПП-10 левая, РД BRAVO 5.`);
+  b.say('ДПР', 'ЭВС', `${cs}, работайте с Ладога-Старт – 118,1.`);
+  b.say('ЭВС', 'ДПР', `Работаю с Ладога-Старт – 118,1, ${cs}.`);
+
+  b.at({ stage: 'СДП' });
+  b.coord('ПДП', 'СДП', ['Старт – Посадке, прямая свободна.', 'Прямая свободна.']);
+  b.say('ЭВС', 'СДП', `Ладога-Старт, ${csH}, на предварительном РД BRAVO 5.`);
+  b.say('СДП', 'ЭВС', `${cs}, Ладога-Старт, разрешаю исполнительный ВПП-10 левая.`);
+  b.say('ЭВС', 'СДП', `${cs}, занимаю исполнительный ВПП-10 левая.`);
+  b.say('ЭВС', 'СДП', `${cs}, к взлёту готов.`);
+  b.say('СДП', 'ЭВС', `${cs}, ВПП-10 левая, ${v.wind}, разрешаю взлёт.`, { cue: 'Разрешите взлёт (ВПП, ветер)' });
+  b.say('ЭВС', 'СДП', `ВПП-10 левая, взлетаю, ${cs}.`);
+  b.at({ t: v.tDep });
+  b.coord('СДП', 'ДПП', [`Подход – Старту, ${cs}, взлёт в ${mm(v.tDep)} минут.`, `${cs}, взлёт в ${mm(v.tDep)} минут.`], 'Время взлёта — Подходу');
+  b.mark(APP, 'L', { pod: 'LADOGA', hint: 'взлёт подтверждён — «Л» на отсечке Ладога' });
+  b.coord('СДП', 'АДП', [`АДП – Старту, ${cs}, взлёт в ${mm(v.tDep)} минут.`, `${cs}, взлёт в ${mm(v.tDep)} минут.`]);
+
+  b.at({ t: v.tDep + 1, fl: 6, cfl: 70, stage: 'ДПК' });
+  b.coord('ДПП', 'ДПК', [`Круг – Подходу, ${cs}, ${sid}, эшелон 70 свободен.`, `${cs}, ${sid}, эшелон 70 свободен.`], 'Согласуйте с Кругом эшелон выхода');
+  b.say('ЭВС', 'ДПК', `Ладога-Круг, ${csH}, в наборе 600 футов по схеме ${sid}.`);
+  b.say('ДПК', 'ЭВС', `${cs}, Ладога-Круг, опознаны, разрешаю через ${sid}, набирайте эшелон 70, пересечение эшелона 50 доложить.`, { cue: 'Опознайте, SID, набор FL070, доклад FL050' });
+  b.say('ЭВС', 'ДПК', `Продолжаем по схеме ${sid}, набираю эшелон 70, пересечение эшелона 50 доложить, ${cs}.`);
+  b.at({ t: v.tDep + 4, fl: 50 });
+  b.say('ЭВС', 'ДПК', `${cs}, пересекаю эшелон 50.`);
+  b.say('ДПК', 'ЭВС', `${cs}, азимут {AZ}, удаление {DIST}, работайте с Ладога-Подход – ${d.appFreq}.`, { azd: true, cue: 'Азимут/удаление и передача на Подход' });
+  b.say('ЭВС', 'ДПК', `Работаем с Ладога-Подход – ${d.appFreq}, ${cs}.`);
+
+  b.at({ t: v.tDep + 5, fl: 60, cfl: 70, stage: 'ДПП' });
+  b.say('ЭВС', 'ДПП', `Ладога-Подход, ${csH}, по схеме ${sid}, пересекаю эшелон 60, в наборе эшелон 70, ${d.entry} в ${mm(v.tEntry)} минут.`);
+  b.mark(APP, 'cut', { pod: d.entry, tm: v.tEntry, hint: `${d.entry} ${mm(v.tEntry)}′ (доклад экипажа)` });
+  b.say('ДПП', 'ЭВС', `${cs}, Ладога-Подход, азимут {AZ}, удаление {DIST}, [опознаны,] разрешаю через ${sid}, набирайте эшелон ${fa}, занятие доложить.`, { azd: true, cue: `Опознайте и дайте набор (${parityHint(fa)})` });
+  b.at({ cfl: fa });
+  b.say('ЭВС', 'ДПП', `Набираю эшелон ${fa}, занятие доложить, ${cs}.`);
+  b.coord('ДПП', 'РЦ', [`Контроль-${d.accN} – Подходу-${d.appN}, запишите ${d.entry} в ${mm(v.tEntry)} минут.`, 'Пишу.'], `Передайте борт в ${ACC}`);
+  b.tasks.push({ sector: ACC, type: 'cut', pod: d.entry, tm: v.tEntry, after: b.steps.length - 2, hint: `запишите ${d.entry} в ${mm(v.tEntry)}′` });
+  b.say('ДПП', 'РЦ', `${cs}, ${type}, эшелон ${fa}, подписанный ${fc}, ${na}.`, { kind: 'coord' });
+  b.mark(ACC, 'form', { fields: { cs, fl: String(fa), signed: String(fc), dest: d.city } });
+  b.table(ACC, { cs, fl: `${fa}/${fc}`, from: d.entry, to: d.city, times: [v.tEntry, v.tMid, v.tExit] });
+  b.say('РЦ', 'ДПП', `${d.entry} в ${mm(v.tEntry)} минут, ${cs}, ${type}, эшелон ${fa}, подписанный ${fc}, ${na}.`, { kind: 'coord' });
+  b.mark(APP, 'check', { pod: d.entry, hint: 'согласовано с РЦ — галочка у рубежа передачи' });
+  b.at({ t: v.tEntry - 3, fl: fa });
+  b.say('ЭВС', 'ДПП', `${cs}, занял эшелон ${fa}.`);
+  b.mark(APP, 'lvl', { tm: v.tEntry - 3, fl: fa, red: true, hint: `занял FL${fa} в ${mm(v.tEntry - 3)}′ — отсечка на линии и эшелон` });
+  b.say('ДПП', 'ЭВС', `${cs}, сохраняйте эшелон ${fa}, ${d.entry} доложить.`);
+  b.say('ЭВС', 'ДПП', `Сохраняю эшелон ${fa}, ${d.entry} доложить, ${cs}.`);
+  b.at({ t: v.tEntry });
+  b.say('ЭВС', 'ДПП', `${cs}, ${d.entry}, эшелон ${fa}.`);
+  b.mark(APP, 'L', { pod: d.entry, hint: `проход ${d.entry} — «Л»` });
+  b.say('ДПП', 'ЭВС', `${cs}, азимут {AZ}, удаление {DIST}, работайте с Ладога-Контроль – ${d.accFreq}.`, { azd: true, cue: 'Передайте борт на Контроль' });
+  b.say('ЭВС', 'ДПП', `Работаем с Ладога-Контроль – ${d.accFreq}, ${cs}.`);
+
+  b.at({ stage: 'РЦ' });
+  b.say('ЭВС', 'РЦ', `Ладога-Контроль, ${csH}, ${d.entry}, эшелон ${fa}, ${d.mid} в ${mm(v.tMid)} минут, ${d.exit} в ${mm(v.tExit)} минут.`);
+  b.mark(ACC, 'cut', { pod: d.mid, tm: v.tMid, hint: `${d.mid} ${mm(v.tMid)}′` }).mark(ACC, 'cut', { pod: d.exit, tm: v.tExit, hint: `${d.exit} ${mm(v.tExit)}′` });
+  b.say('РЦ', 'ЭВС', `${cs}, Ладога-Контроль, азимут {AZ}, удаление {DIST}, [опознаны,] подтвердите разрешение RVSM.`, { azd: true, cue: 'Опознайте борт и запросите RVSM (подписан эшелон ≥ 290)' });
+  b.mark(ACC, 'L', { pod: d.entry, hint: `опознан — «Л» на ${d.entry}` });
+  b.say('ЭВС', 'РЦ', `Подтверждаю RVSM, ${cs}.`);
+  b.say('РЦ', 'ЭВС', `${cs}, набирайте эшелон ${fc}, ${d.mid} доложить.`, { cue: 'Набор до подписанного эшелона' });
+  b.at({ cfl: fc });
+  b.say('ЭВС', 'РЦ', `Набираю эшелон ${fc}, ${d.mid} доложу, ${cs}.`);
+  b.coord('РЦ', 'СМЕЖ', [`${d.adj} – Ладога-Контроль, запишите ${d.exit} в ${mm(v.tExit)} минут.`, 'Пишу.', `${cs}, ${type}, эшелон ${fc}, ${na}.`, `${d.exit} в ${mm(v.tExit)} минут, ${cs}, ${type}, эшелон ${fc}, ${na}.`], `Передайте борт в ${d.adj}`);
+  b.mark(ACC, 'check', { pod: d.exit, hint: `согласовано с ${d.adj} — галочка в конце линии` });
+  b.at({ t: v.tMid, fl: Math.round((fa + fc) / 20) * 10 });
+  b.say('ЭВС', 'РЦ', `${cs}, ${d.mid} в наборе эшелон ${fc}.`);
+  b.mark(ACC, 'L', { pod: d.mid, hint: `проход ${d.mid} — «Л»` });
+  b.say('РЦ', 'ЭВС', `${cs}, ${d.mid} подтверждаю, эшелон ${fc} доложить.`);
+  b.say('ЭВС', 'РЦ', `Эшелон ${fc} доложить, ${cs}.`);
+  b.at({ t: v.tMid + 2, fl: fc });
+  b.say('ЭВС', 'РЦ', `${cs}, занял эшелон ${fc}.`);
+  b.mark(ACC, 'lvl', { tm: v.tMid + 2, fl: fc, red: true, hint: `занял FL${fc} в ${mm(v.tMid + 2)}′ — отсечка и эшелон, красная линия набора` });
+  b.say('РЦ', 'ЭВС', `${cs}, сохраняйте эшелон ${fc}, ${d.exit} доложить.`);
+  b.say('ЭВС', 'РЦ', `Сохраняю эшелон ${fc}, ${d.exit} доложу, ${cs}.`);
+  b.at({ t: v.tExit });
+  b.say('ЭВС', 'РЦ', `${cs}, ${d.exit}, эшелон ${fc}.`);
+  b.mark(ACC, 'L', { pod: d.exit, hint: `проход ${d.exit} — «Л»` });
+  b.say('РЦ', 'ЭВС', `${cs}, азимут {AZ}, удаление {DIST}, работайте с ${d.adj} – ${d.adjFreq}.`, { azd: true, cue: `Передайте борт в ${d.adj}` });
+  b.say('ЭВС', 'РЦ', `Работаю с ${d.adj} – ${d.adjFreq}, ${cs}.`);
+  return { title: `Вылет ${cs} ${na}`, sub: `${type} · ${sid} · РЦ-${d.accN}`, kind: 'dep', d, v, track, steps: b.steps, tasks: b.tasks, climbFrom: { [APP]: 'LADOGA', [ACC]: d.entry } };
+}
+
+function buildArrival(dkey, seed, ov = {}) {
+  const r = rng(seed); const d = DIRECTIONS[dkey || pick(r, Object.keys(DIRECTIONS))];
+  const v = commonVars(r); const [cr, hd] = levels(parity(mbrg(xy(d.route[d.route.length - 1]), xy('LADOGA'))));
+  v.flCr = pick(r, cr.slice(0, 2)); v.flHand = pick(r, hd.slice(0, 2));
+  const R = [...d.route].reverse(), t0 = rint(r, 0, 25); v.t0 = t0; v.tExit = t0 + 10;
+  v.tMid = v.tExit + Math.max(5, Math.round(routeLen(R.slice(R.indexOf(d.exit), R.indexOf(d.mid) + 1)) / 760 * 60));
+  v.tEntry = v.tMid + Math.max(6, Math.round(routeLen(R.slice(R.indexOf(d.mid), R.indexOf(d.entry) + 1)) / 700 * 60));
+  v.tArr = v.tEntry + Math.max(9, Math.round(routeLen(R.slice(R.indexOf(d.entry))) / 420 * 60) + 6);
+  v.tTod = Math.max(v.tMid + 1, v.tEntry - 6); v.tLand = v.tArr + 3; v.twy = pick(r, ['ALFA 3', 'ALFA 2', 'ALFA 1']);
+  Object.assign(v, ov);
+  const track = new Track(R, { [d.exit]: v.tExit, [d.mid]: v.tMid, [d.entry]: v.tEntry, LADOGA: v.tArr });
+  const { cs, type, flCr: fc, flHand: fh } = v, star = `${d.starFix} 2A`, APP = `ДПП-${d.appN}`, ACC = `РЦ-${d.accN}`;
+  const b = new Builder(track);
+
+  b.at({ t: t0, fl: fc, cfl: fc, stage: 'РЦ' });
+  b.coord('СМЕЖ', 'РЦ', [`Ладога-Контроль – ${d.adj}, запишите ${d.exit} в ${mm(v.tExit)} минут.`]);
+  b.mark(ACC, 'cut', { pod: d.exit, tm: v.tExit, hint: `запишите ${d.exit} в ${mm(v.tExit)}′ — первая отсечка` });
+  b.say('РЦ', 'СМЕЖ', 'Пишу.', { kind: 'coord' });
+  b.say('СМЕЖ', 'РЦ', `${cs}, ${type}, эшелон ${fc}, Ладога.`, { kind: 'coord' });
+  b.mark(ACC, 'form', { fields: { cs, fl: String(fc), dest: 'Ладога' } });
+  b.say('РЦ', 'СМЕЖ', `${d.exit} в ${mm(v.tExit)} минут, ${cs}, ${type}, эшелон ${fc}, Ладога.`, { kind: 'coord' });
+  b.at({ t: v.tExit });
+  b.say('ЭВС', 'РЦ', `Ладога-Контроль, ${cs}, ${d.exit}, эшелон ${fc}, ${d.mid} в ${mm(v.tMid)} минут, ${d.entry} в ${mm(v.tEntry)} минут, Ладога в ${mm(v.tArr)} минут.`);
+  b.mark(ACC, 'cut', { pod: d.mid, tm: v.tMid, hint: `${d.mid} ${mm(v.tMid)}′` }).mark(ACC, 'cut', { pod: d.entry, tm: v.tEntry, hint: `${d.entry} ${mm(v.tEntry)}′` }).mark(ACC, 'cut', { pod: 'LADOGA', tm: v.tArr, hint: `Ладога ${mm(v.tArr)}′ — время прилёта` });
+  b.table(ACC, { cs, fl: `${fc}`, from: d.exit, to: 'Ладога', times: [v.tExit, v.tMid, v.tEntry, v.tArr] });
+  b.say('РЦ', 'ЭВС', `${cs}, Ладога-Контроль, опознаны, азимут {AZ}, удаление {DIST}, сохраняйте эшелон ${fc}, на ${d.entry} занять эшелон ${fh}.`, { azd: true, cue: `Опознайте; условие: на ${d.entry} занять эшелон передачи (${parityHint(fh)})` });
+  b.mark(ACC, 'L', { pod: d.exit, hint: `опознан — «Л» на ${d.exit}` }).mark(ACC, 'fl', { pod: d.entry, fl: fh, hint: `эшелон передачи FL${fh} над отсечкой ${d.entry}` });
+  b.say('ЭВС', 'РЦ', `Сохраняю эшелон ${fc}, на ${d.entry} занять эшелон ${fh}, расчётное время начала снижения в ${mm(v.tTod)} минут, ${cs}.`);
+  b.mark(ACC, 'lvl', { tm: v.tTod, fl: fc, hint: `начало снижения ${mm(v.tTod)}′ — отсечка на линии, над ней FL${fc}` });
+  b.say('РЦ', 'ЭВС', `${cs}, понял, в ${mm(v.tTod)} минут, ${d.mid} доложить.`);
+  b.say('ЭВС', 'РЦ', `${d.mid} доложим, ${cs}.`);
+  b.coord('РЦ', 'ДПП', [`Подход-${d.appN} – Контролю-${d.accN}, запишите ${d.entry} в ${mm(v.tEntry)} минут.`], 'Передайте борт Подходу');
+  b.mark(APP, 'cut', { pod: d.entry, tm: v.tEntry, hint: `запишите ${d.entry} в ${mm(v.tEntry)}′` });
+  b.say('ДПП', 'РЦ', 'Пишу.', { kind: 'coord' });
+  b.say('РЦ', 'ДПП', `${cs}, ${type}, эшелон ${fh}, прибытие в ${mm(v.tArr)} минут.`, { kind: 'coord' });
+  b.mark(APP, 'form', { fields: { cs, fl: String(fh), dest: 'Ладога' } }).mark(APP, 'cut', { pod: 'LADOGA', tm: v.tArr, hint: `прибытие ${mm(v.tArr)}′` });
+  b.say('ДПП', 'РЦ', `${d.entry} в ${mm(v.tEntry)} минут, ${cs}, ${type}, эшелон ${fh}, прибытие в ${mm(v.tArr)} минут.`, { kind: 'coord' });
+  b.mark(ACC, 'check', { pod: d.entry, hint: 'согласовано с Подходом — галочка за отсечкой рубежа' });
+  b.at({ t: v.tMid });
+  b.say('ЭВС', 'РЦ', `${cs}, ${d.mid}, эшелон ${fc}.`);
+  b.mark(ACC, 'L', { pod: d.mid, hint: `проход ${d.mid} — «Л»` });
+  b.say('РЦ', 'ЭВС', `${cs}, понял, сохраняйте эшелон ${fc}.`);
+  b.say('ЭВС', 'РЦ', `Сохраняем эшелон ${fc}, ${cs}.`);
+  b.at({ t: v.tTod });
+  b.say('ЭВС', 'РЦ', `${cs}, расчётное время начала снижения.`);
+  b.say('РЦ', 'ЭВС', `${cs}, снижайтесь эшелон ${fh}, занятие доложить.`, { cue: 'Разрешите снижение' });
+  b.at({ cfl: fh });
+  b.say('ЭВС', 'РЦ', `Снижаемся эшелон ${fh}, занятие доложим, ${cs}.`);
+  b.at({ t: v.tEntry - 2, fl: fh });
+  b.say('ЭВС', 'РЦ', `${cs}, занял эшелон ${fh}.`);
+  b.mark(ACC, 'lvl', { tm: v.tEntry - 2, fl: fh, red: true, hint: `занял FL${fh} в ${mm(v.tEntry - 2)}′ — отсечка, красная линия снижения` });
+  b.say('РЦ', 'ЭВС', `${cs}, сохраняйте эшелон ${fh}, ${d.entry} доложить.`);
+  b.say('ЭВС', 'РЦ', `Сохраняем эшелон ${fh}, ${d.entry} доложить, ${cs}.`);
+  b.at({ t: v.tEntry });
+  b.say('ЭВС', 'РЦ', `${cs}, ${d.entry}.`);
+  b.mark(ACC, 'L', { pod: d.entry, hint: `рубеж передачи ${d.entry} — «Л» снизу, в сторону Ладоги` });
+  b.say('РЦ', 'ЭВС', `${cs}, работайте с Ладога-Подход – ${d.appFreq}.`, { cue: 'Передайте борт на Подход' });
+  b.say('ЭВС', 'РЦ', `Работаем с Ладога-Подход – ${d.appFreq}, ${cs}.`);
+
+  b.at({ stage: 'ДПП' });
+  b.say('ЭВС', 'ДПП', `Ладога-Подход, ${cs}, ${d.entry}, эшелон ${fh}, информация ${v.atis}.`);
+  b.say('ДПП', 'ЭВС', `${cs}, Ладога-Подход, опознаны. ВПП-10 правая, снижайтесь на ${d.starFix} эшелон 70.`, { cue: `Опознайте, ВПП, снижение на ${d.starFix} до эшелона 70` });
+  b.mark(APP, 'L', { pod: d.entry, hint: `опознан — «Л» на ${d.entry}` });
+  b.at({ cfl: 70 });
+  b.say('ЭВС', 'ДПП', `На ${d.starFix} снижаемся эшелон 70, ${cs}.`);
+  b.coord('ДПП', 'ДПК', [`Круг – Подходу-${d.appN} от ${d.entry}, ${cs}, прибытие в ${mm(v.tArr)} минут.`, `От ${d.entry}, ${cs}, ${star}, прибытие в ${mm(v.tArr)}, эшелон 50 свободен.`, `От ${d.entry}, ${cs}, ${star} прибытие, эшелон 50 свободен.`], 'Согласуйте прибытие с Кругом');
+  b.mark(APP, 'check', { pod: 'LADOGA', hint: 'согласовано с Кругом — галочка' });
+  b.at({ t: v.tEntry + 3, fl: 70 });
+  b.say('ЭВС', 'ДПП', `${cs}, занял эшелон 70.`);
+  b.mark(APP, 'lvl', { tm: v.tEntry + 3, fl: 70, red: true, hint: `занял FL070 в ${mm(v.tEntry + 3)}′` });
+  b.say('ДПП', 'ЭВС', `${cs}, сохраняйте эшелон 70, ожидайте ${star} прибытие.`);
+  b.say('ЭВС', 'ДПП', `Сохраняем эшелон 70, ожидаем ${star} прибытие, ${cs}.`);
+  b.say('ДПП', 'ЭВС', `${cs}, снижайтесь эшелон 50, пересечение эшелона 60 доложить.`, { cue: 'Снижение до 50 с докладом пересечения 60' });
+  b.at({ cfl: 50 });
+  b.say('ЭВС', 'ДПП', `Снижаемся эшелон 50, пересечение эшелона 60 доложим, ${cs}.`);
+  b.at({ t: v.tEntry + 5, fl: 60 });
+  b.say('ЭВС', 'ДПП', `${cs}, пересекаем эшелон 60.`);
+  b.say('ДПП', 'ЭВС', `${cs}, работайте с Ладога-Круг – 120,6.`);
+  b.say('ЭВС', 'ДПП', `Ладога-Круг – 120,6, ${cs}.`);
+
+  b.at({ t: v.tEntry + 6, fl: 50, stage: 'ДПК' });
+  b.say('ЭВС', 'ДПК', `Ладога-Круг, ${cs}, ${d.starPt}, эшелон 50, ${star} прибытие, ожидаем заход ILS Z, ВПП-10 правая.`);
+  b.say('ДПК', 'ЭВС', `${cs}, Ладога-Круг, опознаны, разрешаю ${star} прибытие, ожидайте заход ILS Z, ВПП-10 правая, снижайтесь 2000 футов, QNH ${v.qnh}.`, { cue: 'Опознайте, STAR, снижение 2000 ft по QNH' });
+  b.at({ cfl: 20 });
+  b.say('ЭВС', 'ДПК', `Ожидаем заход ILS Z, ВПП-10 правая, снижаемся 2000 футов, QNH ${v.qnh}, ${cs}.`);
+  b.at({ t: v.tArr - 4, fl: 20 });
+  b.say('ДПК', 'ЭВС', `${cs}, разрешаю заход ILS Z, ВПП-10 правая.`, { cue: 'Борт у IAF LG729 — разрешите заход' });
+  b.say('ЭВС', 'ДПК', `Заход ILS Z разрешили, ВПП-10 правая, ${cs}.`);
+  b.coord('ДПК', 'ПДП', [`Посадка – Кругу, ${cs}, с прямой, заход ILS.`, `${cs}, с прямой, заход ILS.`]);
+  b.at({ t: v.tArr - 2, fl: 15 });
+  b.say('ЭВС', 'ДПК', `${cs}, подходим к LG730.`);
+  b.say('ДПК', 'ЭВС', `${cs}, удаление {DIST}, работайте с Ладога-Посадка – 118,1.`, { azd: true, noAz: true });
+  b.say('ЭВС', 'ДПК', `С Ладога-Посадка – 118,1, ${cs}.`);
+
+  b.at({ stage: 'ПДП', fl: 10 });
+  b.coord('СДП', 'ПДП', ['Посадка – Старту, ВПП-10 правая свободна.', 'Принял, ВПП-10 правая свободна.']);
+  b.say('ЭВС', 'ПДП', `Ладога-Посадка, ${cs}, на посадочной прямой.`);
+  b.say('ПДП', 'ЭВС', `${cs}, Ладога-Посадка, опознаны, продолжайте заход ILS Z ВПП-10 правая.`);
+  b.say('ЭВС', 'ПДП', `Продолжаем заход ILS Z ВПП-10 правая, ${cs}.`);
+  b.at({ t: v.tLand - 1, fl: 3 });
+  b.say('ПДП', 'ЭВС', `${cs}, ВПП-10 правая, ${v.wind}, разрешаю посадку.`, { cue: 'Разрешите посадку (ветер)' });
+  b.say('ЭВС', 'ПДП', `Посадку на ВПП-10 правую разрешили, ${cs}.`);
+
+  b.at({ t: v.tLand, fl: 0, stage: 'СДП' });
+  b.say('СДП', 'ЭВС', `${cs}, влево по РД ${v.twy}.`, { cue: 'РД освобождения ВПП' });
+  b.say('ЭВС', 'СДП', `Влево по РД ${v.twy}, ${cs}.`);
+  b.coord('СДП', 'АДП', [`${cs}, посадка в ${mm(v.tLand)} минут.`, `${cs}, посадка в ${mm(v.tLand)} минут.`]);
+  b.say('ЭВС', 'СДП', `${cs}, полосу освободил по РД ${v.twy}.`);
+  b.say('СДП', 'ЭВС', `${cs}, работайте с Ладога-Руление – 119,0.`);
+  b.say('ЭВС', 'СДП', `С Ладога-Руление – 119,0, ${cs}.`);
+
+  b.at({ stage: 'ДПР' });
+  b.say('ЭВС', 'ДПР', `Ладога-Руление, ${cs}, РД ${v.twy}.`);
+  b.say('ДПР', 'ЭВС', `${cs}, Ладога-Руление, рулите на перрон через РД ${v.twy}, магистральная ALFA, РД CHARLIE, ваша стоянка ${v.stand} по указанию встречающего.`, { cue: 'Руление на стоянку' });
+  b.say('ЭВС', 'ДПР', `Стоянка ${v.stand}, по РД ${v.twy}, магистральная ALFA, РД CHARLIE, ${cs}.`);
+  b.say('ЭВС', 'ДПР', `${cs}, на стоянке ${v.stand}, встречающего наблюдаем.`);
+  b.say('ДПР', 'ЭВС', `${cs}, понял, конец связи.`);
+  return { title: `Прилёт ${cs} из ${d.gen}`, sub: `${type} · ${star} · РЦ-${d.accN}`, kind: 'arr', d, v, track, steps: b.steps, tasks: b.tasks };
+}
+const buildScenario = (kind, dkey, seed, ov) => kind === 'dep' ? buildDeparture(dkey, seed, ov) : buildArrival(dkey, seed, ov);
+
+// ═══ ПРОВЕРКА ФРАЗ ═══
+const ALIASES = { pelmi: ['пелми'], cirov: ['циров', 'чиров', 'сиров'], trest: ['трест'], birus: ['бирус'], pirsk: ['пирск'], orlon: ['орлон'], silin: ['силин'], ruben: ['рубен'], testo: ['тесто'], cerni: ['церни', 'черни'], pomor: ['помор'], moksa: ['мокса'], korki: ['корки'], fortu: ['форту'], oremi: ['ореми'], kopna: ['копна'], gorin: ['горин'], sobor: ['собор'], seren: ['серен'], tartur: ['тартур'], peski: ['пески'], novik: ['новик'],
+  alfa: ['альфа', 'alpha'], bravo: ['браво'], charlie: ['чарли'], delta: ['дельта'], echo: ['эхо'], foxtrot: ['фокстрот'], golf: ['гольф'], hotel: ['хотел', 'отель'],
+  ils: ['илс'], rvsm: ['рвсм'], qnh: ['кьюэнэйч'], lg: ['лг'], z: ['зулу', 'zulu'], 'эшелон': ['fl', 'эш'], 'футов': ['ft', 'фут'], 'минут': ['мин', 'минуты', 'минуту'], 'сквок': ['squawk', 'код', 'ответчика'] };
+const CANON = {}; for (const [k, vs] of Object.entries(ALIASES)) { CANON[k] = k; vs.forEach(x => CANON[x] = k); }
+const CODE = new Set([...Object.keys(ALIASES).filter(k => /^[a-z]+$/.test(k)), 'сдм', 'афл', 'свр', 'юта', 'плк']);
+const ACTION = new Set(['разре', 'набир', 'снижа', 'сохра', 'долож', 'работ', 'запиш', 'пишу', 'продо', 'рулит', 'ожида', 'подтв', 'перес', 'взлет', 'посад', 'понял']);
+const isNum = w => /^[\d.]+$/.test(w);
+function normalize(text) {
+  let t = text.toLowerCase().replace(/ё/g, 'е').replace(/(\d)[,.](\d)/g, '$1.$2').replace(/([a-zа-я])(\d)/g, '$1 $2').replace(/(\d)([a-zа-я])/g, '$1 $2')
+    .replace(/[^\wа-я.\s]/g, ' ').replace(/(^|[^\d])\.|\.(?!\d)/g, '$1 ');
+  return t.split(/\s+/).filter(Boolean).map(w => CANON[w] || w);
+}
+const stem = w => (isNum(w) || CODE.has(w)) ? w : w.slice(0, 5);
+const stripOpt = s => s.replace(/\[[^\]]*\]/g, ' ');
+const showText = s => s.replace(/\[|\]/g, '');
+function keyElements(ref) {
+  return normalize(stripOpt(ref)).filter(w => isNum(w) || CODE.has(w) || (ACTION.has(stem(w)) && !/(ние|ния|нию|нии)$/.test(w))).map(stem);
+}
+function numAfter(toks, st) { for (let i = 0; i < toks.length; i++) if (toks[i].startsWith(st)) for (const x of toks.slice(i + 1, i + 3)) if (/^\d+$/.test(x)) return +x; return null; }
+function checkPhrase(user, ref, meta = {}, cs = '', isCtl = false) {
+  const res = { ok: true, errors: [], warnings: [], sim: 1 };
+  const u = normalize(user), rFull = normalize(ref.replace(/\[|\]/g, ' ')), keys = keyElements(ref), us = u.map(stem);
+  const fuzzy = new Set();
+  for (const [word, f, tol, unit, name] of [['азиму', 'az', 15, '°', 'азимут'], ['удале', 'dist', 15, ' км', 'удаление']]) {
+    if (!(f in meta)) continue; const exp = meta[f]; fuzzy.add(String(exp)); const got = numAfter(u, word);
+    if (got === null) res.errors.push(`нет: ${name} (≈${exp}${unit})`);
+    else { let df = Math.abs(got - exp); if (f === 'az') df = Math.min(df, 360 - df); if (df > tol) res.errors.push(`${name} ${got}${unit}, по радару ≈${exp}${unit}`); fuzzy.add(String(got)); }
+  }
+  const rem = [...us];
+  for (const k of keys) { if (fuzzy.has(k)) continue; const i = rem.indexOf(k); if (i >= 0) rem.splice(i, 1); else res.errors.push(isNum(k) ? `нет числа ${k}` : `пропущено «${k.toUpperCase && CODE.has(k) ? k.toUpperCase() : k + '…'}»`); }
+  const refNums = new Set([...rFull.filter(isNum), ...fuzzy]);
+  u.filter(w => isNum(w) && !refNums.has(w)).forEach(w => res.errors.push(`неверное число ${w}`));
+  res.sim = seqRatio(rFull.map(stem), us);
+  if (cs && isCtl) { const c = normalize(cs); if (normalize(ref).slice(0, c.length).join() === c.join() && u.slice(0, c.length).join() !== c.join()) res.warnings.push('диспетчер начинает передачу с позывного'); }
+  if (res.sim < .55 && !res.errors.length) res.warnings.push('формулировка отличается от ФРО');
+  res.ok = !res.errors.length; return res;
+}
+function seqRatio(a, b) { // как difflib: 2*M/T по LCS
+  const m = a.length, n = b.length; if (!m && !n) return 1; const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+  return 2 * dp[m][n] / (m + n);
+}
+function skeleton(ref) { return keyElements(ref).map(k => CODE.has(k) ? k.toUpperCase() : isNum(k) ? k : k + '…').join(' · '); }
+
+// ═══ СЕССИЯ ═══
+class Session {
+  constructor({ kind, dkey, roleId, seed }) {
+    this.seed = seed ?? Math.floor(Math.random() * 1e9);
+    this.sc = buildScenario(kind, dkey, this.seed);
+    this.role = ROLES.find(r => r.id === roleId);
+    const d = this.sc.d;
+    this.sector = this.role.unit === 'РЦ' ? `РЦ-${d.accN}` : this.role.unit === 'ДПП' ? `ДПП-${d.appN}` : null;
+    this.i = 0; this.attempts = 0; this.hintLvl = {}; this.firstOk = 0; this.humanTotal = 0; this.log = []; this.hints = 0;
+    this.tasks = this.sc.tasks.map((t, k) => ({ ...t, id: k, done: false, human: this.isHumanTask(t), tries: 0 }));
+    // задачи, которые ведёт «бот-ПК», выполняются автоматически
+    this.graphErr = 0; this.graphOk = 0; this.finished = false;
+  }
+  isHumanTask(t) {
+    if (t.type === 'table') return !!(this.role.table && t.sector === this.sector);
+    return !!(this.role.graph && t.sector === this.sector);
+  }
+  get step() { return this.sc.steps[this.i] || null; }
+  isHuman(st) { return st.speaker === this.role.unit && (!this.role.kinds || this.role.kinds.includes(st.kind)); }
+  unitLabel(u) { const d = this.sc.d; return u === 'ДПП' ? `ДПП-${d.appN}` : u === 'РЦ' ? `РЦ-${d.accN}` : u === 'СМЕЖ' ? d.adj : u; }
+  stageTitle(s) { const d = this.sc.d; return ({ 'ДПР': 'Ладога-Руление · 119,0', 'СДП': 'Ладога-Старт · 118,1', 'ПДП': 'Ладога-Посадка · 118,1', 'ДПК': 'Ладога-Круг · 120,6', 'ДПП': `Ладога-Подход · ${d.appFreq}`, 'РЦ': `Ладога-Контроль · ${d.accFreq}` })[s] || s; }
+  pendingTasks() { return this.tasks.filter(t => !t.done && t.after < this.i); }
+  blockingTasks() { return this.pendingTasks().filter(t => t.human); }
+  // автоматически выполнить задачи, которые не на человеке
+  autoTasks() { this.tasks.forEach(t => { if (!t.done && !t.human && t.after < this.i) { t.done = true; t.auto = true; } }); }
+  // один шаг бота; возвращает событие или null если ждём человека/график
+  next() {
+    this.autoTasks();
+    if (this.blockingTasks().length) return { type: 'graph-wait', tasks: this.blockingTasks() };
+    const st = this.step;
+    if (!st) { if (!this.finished) { this.finished = true; return { type: 'end' }; } return null; }
+    if (this.isHuman(st)) {
+      if (this._prompted !== this.i) { this._prompted = this.i; this.attempts = 0; this.humanTotal++; return { type: 'prompt', step: st, cue: st.cue || this.autoCue() }; }
+      return null;
+    }
+    this.i++; return { type: 'line', step: st };
+  }
+  autoCue() {
+    const st = this.step, prev = this.sc.steps[this.i - 1];
+    if (st.speaker === 'ЭВС') return prev && prev.speaker === st.listener ? 'Квитанция: повторите указание, в конце позывной' : 'Доклад экипажа';
+    if (st.kind === 'coord') return prev && prev.speaker === st.listener && prev.kind === 'coord' ? 'Ответ по координации' : 'Координация со смежным пунктом';
+    return prev && prev.speaker === 'ЭВС' ? 'Ответьте экипажу' : 'Передача экипажу';
+  }
+  submit(text) {
+    const st = this.step; if (!st || !this.isHuman(st)) return null;
+    const res = checkPhrase(text, st.text, st.meta, this.sc.v.cs, st.speaker !== 'ЭВС');
+    this.attempts++; this.log.push({ st, text, res });
+    if (res.ok) { if (this.attempts === 1 && !this.hintLvl[this.i]) this.firstOk++; this.i++; }
+    return res;
+  }
+  hint() {
+    const st = this.step; if (!st || !this.isHuman(st)) return null; this.hints++;
+    const l = this.hintLvl[this.i] = (this.hintLvl[this.i] || 0) + 1;
+    return l === 1 ? { lvl: 1, text: skeleton(st.text) } : { lvl: 2, text: showText(st.text) };
+  }
+  skip() { const st = this.step; if (!st || !this.isHuman(st)) return null; this.log.push({ st, text: null, res: null }); this.i++; return st; }
+  // ── график
+  doneCuts(sector) { return this.tasks.filter(t => t.done && t.sector === sector && (t.type === 'cut' || t.type === 'lvl')); }
+  tryGraph(tool, pod, tm, sector) {
+    const pend = this.blockingTasks().filter(t => t.sector === sector);
+    if (!pend.length) return { ok: false, msg: 'Сейчас на графике ничего отмечать не нужно.' };
+    const want = pend[0], tt = want.type === 'lvl' ? 'cut' : want.type;
+    if (tool !== tt) { want.tries++; this.graphErr++; return { ok: false, msg: `Сейчас нужна другая отметка: ${TOOL_NAMES[tt]}. Подсказка: ${want.hint || ''}` }; }
+    if (want.type === 'cut') {
+      if (pod !== want.pod) { want.tries++; this.graphErr++; return { ok: false, msg: `Это линия ${pod || '—'}, а нужна ${want.pod}.` }; }
+      if (Math.abs(tm - want.tm) > 1) { want.tries++; this.graphErr++; return { ok: false, msg: `Время ${mm(tm)}′ — нужно ${mm(want.tm)}′ (±1).` }; }
+    } else if (want.type === 'lvl') {
+      if (Math.abs(tm - want.tm) > 1) { want.tries++; this.graphErr++; return { ok: false, msg: `Отсечка на линии графика в ${mm(tm)}′ — нужно ${mm(want.tm)}′.` }; }
+      return { ok: true, needFl: want };
+    } else if (want.type === 'L' || want.type === 'check' || want.type === 'fl') {
+      if (pod !== want.pod) { want.tries++; this.graphErr++; return { ok: false, msg: `Отметка должна быть у ПОД ${want.pod}.` }; }
+      if (want.type === 'fl') return { ok: true, needFl: want };
+    }
+    want.done = true; if (!want.tries) this.graphOk++; return { ok: true, task: want };
+  }
+  confirmFl(task, fl) {
+    if (+fl !== task.fl) { task.tries++; this.graphErr++; return { ok: false, msg: `Эшелон ${fl}? Нужен FL${task.fl}.` }; }
+    task.done = true; if (!task.tries) this.graphOk++; return { ok: true };
+  }
+  submitForm(task, vals) {
+    const errs = [];
+    for (const [k, v] of Object.entries(task.fields)) { const got = (vals[k] || '').toString().trim();
+      const n = s => normalize(s).join(' ');
+      if (k === 'fl' || k === 'signed') { if (+got.replace(/\D/g, '') !== +v) errs.push(`${FORM_LABELS[k]}: ${v}`); }
+      else if (n(got) !== n(v)) errs.push(`${FORM_LABELS[k]}: ${v}`); }
+    if (errs.length) { task.tries++; this.graphErr++; return { ok: false, msg: 'Проверьте: ' + errs.join(', ') }; }
+    task.vals = vals; task.done = true; if (!task.tries) this.graphOk++; return { ok: true };
+  }
+  submitTable(task, vals) {
+    const errs = [], r = task.row, n = s => normalize(s || '').join(' ');
+    if (n(vals.cs) !== n(r.cs)) errs.push('позывной');
+    const fls = (vals.fl || '').match(/\d+/g) || [], want = r.fl.match(/\d+/g);
+    if (fls.map(Number).join('/') !== want.map(Number).join('/')) errs.push(`эшелон (${r.fl.replace(/(\d+)/g, 'FL$1')})`);
+    if (n(vals.from) !== n(r.from)) errs.push(`откуда: ${r.from}`);
+    if (n(vals.to) !== n(r.to)) errs.push(`куда: ${r.to}`);
+    const ts = ((vals.times || '').match(/\d+/g) || []).map(Number), wt = r.times.map(t => +mm(t));
+    if (ts.join() !== wt.join()) errs.push(`время ПОД: ${wt.map(t => String(t).padStart(2, '0') + '′').join(' ')}`);
+    if (errs.length) { task.tries++; this.graphErr++; return { ok: false, msg: 'Проверьте: ' + errs.join('; ') }; }
+    task.vals = vals; task.done = true; if (!task.tries) this.graphOk++; return { ok: true };
+  }
+  summary() {
+    const n = this.humanTotal || 1, skipped = this.log.filter(l => !l.res).length, pct = Math.round(100 * this.firstOk / n);
+    const gTotal = this.tasks.filter(t => t.human).length, gDone = this.tasks.filter(t => t.human && t.done).length;
+    const gPct = gTotal ? Math.round(100 * this.graphOk / gTotal) : null;
+    const errs = []; const seen = new Set();
+    for (const l of this.log) if (l.res && !l.res.ok) for (const e of l.res.errors) if (!seen.has(e) && errs.length < 8) { seen.add(e); errs.push({ e, said: l.text }); }
+    const score = gPct === null ? pct : Math.round(pct * .6 + gPct * .4);
+    const grade = score >= 90 && !skipped ? 5 : score >= 75 ? 4 : score >= 55 ? 3 : 2;
+    return { n: this.humanTotal, first: this.firstOk, pct, skipped, hints: this.hints, gTotal, gDone, gPct, errs, grade };
+  }
+}
+const TOOL_NAMES = { cut: 'отсечка', L: '«Л»', check: 'галочка ✓', fl: 'эшелон', form: 'формуляр', table: 'строка табличного графика' };
+const FORM_LABELS = { cs: 'позывной', fl: 'эшелон входа', reg: 'бортовой номер', signed: 'подписанный эшелон', dest: 'пункт назначения' };
+if (typeof module !== 'undefined') module.exports = { buildScenario, Session, checkPhrase, skeleton, DIRECTIONS, ROLES, GRAPH_PODS, mm };
+// ═══ ИНТЕРФЕЙС ═══
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const store = { get(k, d) { try { const v = localStorage.getItem('ladoga:' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('ladoga:' + k, JSON.stringify(v)); } catch (e) {} } };
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const HOUR = 10; const clockStr = t => `${String(HOUR + Math.floor(t / 60)).padStart(2, '0')}:${mm(Math.floor(t))}`;
+
+const S = { view: 'home', kind: store.get('kind', 'dep'), dkey: store.get('dkey', 'MOSCOW'), roleId: store.get('role', 'РЦ-ПК'),
+  sess: null, simT: 0, screen: 'radar', tool: 'cut', fast: store.get('fast', false), voice: false, pumping: false, gsector: null, tsector: null };
+const app = document.getElementById('app');
+
+// ═════ ГЛАВНЫЙ ЭКРАН ═════
+function renderHome() {
+  S.view = 'home'; tg.back(false);
+  const hist = store.get('history', []);
+  const best = hist.length ? Math.max(...hist.map(h => h.grade)) : null;
+  const roleGroups = [['Районный центр', ['РЦ-ПК', 'РЦ-РЛК', 'РЦ']], ['Подход', ['ДПП-ПК', 'ДПП']], ['Аэродром', ['ДПК', 'СДП', 'ПДП', 'ДПР']], ['Экипаж', ['ЭВС']]];
+  app.innerHTML = `<div class="wrap">
+  <header class="top"><div class="brand">ЛАДОГА <small>КДТ · ULLG · ФРО 2025 ред. 2.1</small></div><span class="sp"></span>
+    <button class="btn ghost" id="toBook">Сборник ФРО</button><button class="btn ghost" id="toRef">Справочник</button></header>
+  <section class="home">
+    <div class="hero">
+      <div>
+        <h1>Сектор ваш.<br><span>Борт на связи.</span></h1>
+        <p>Учебное воздушное пространство «Ладога»: полный рейс от Деливери до смежного РЦ по сборнику ФРО. Берёте любую позицию — РЛК на радаре, ПК на визуализированном графике или экипаж. Остальные пункты, пилоты и смежники работают сами.</p>
+        <div class="stats"><div><b>${hist.length}</b><span>упражнений</span></div><div><b>${best ?? '—'}</b><span>лучшая оценка</span></div><div><b>1,39</b><span>px / км по LDM</span></div></div>
+      </div>
+      <canvas id="heroRadar" width="600" height="600" aria-label="Радар учебного пространства"></canvas>
+    </div>
+    <div class="setup">
+      <div><h3>Упражнение</h3><div class="seg" id="kindSeg">
+        ${[['dep', 'Вылет', 'Деливери → Руление → Старт → Круг → Подход → РЦ'], ['arr', 'Прилёт', 'смежный РЦ → РЦ → Подход → Круг → Посадка → Руление']].map(([k, a, b]) => `<button class="opt" data-k="${k}" aria-pressed="${S.kind === k}"><b>${a}</b><small>${b}</small></button>`).join('')}
+      </div></div>
+      <div><h3>Направление</h3><div class="seg" id="dirSeg">
+        ${Object.values(DIRECTIONS).map(d => `<button class="opt" data-d="${d.key}" aria-pressed="${S.dkey === d.key}"><b>${d.city}</b><small>РЦ-${d.accN} ${d.accFreq} · ${d.entry} – ${d.mid} – ${d.exit}</small></button>`).join('')}
+      </div></div>
+      <div><h3>Ваша позиция</h3><div class="roles" id="roleSeg">
+        ${roleGroups.map(([g, ids]) => `<div class="role-group">${g}</div>` + ids.map(id => { const r = ROLES.find(x => x.id === id); return `<button class="opt" data-r="${id}" aria-pressed="${S.roleId === id}"><b>${r.title}</b><small>${r.sub}</small></button>`; }).join('')).join('')}
+      </div></div>
+      <div class="go"><button class="btn pri" id="start" style="padding:11px 22px;font-size:16px">Заступить на смену</button>
+        <label class="chip"><input type="checkbox" id="fast" ${S.fast ? 'checked' : ''}> быстрый эфир</label>
+        <span class="waiting">Новый позывной, тип, сквок и ветер в каждом упражнении</span></div>
+    </div>
+  </section></div>`;
+  $('#kindSeg').onclick = e => { const b = e.target.closest('[data-k]'); if (b) { S.kind = b.dataset.k; store.set('kind', S.kind); renderHome(); } };
+  $('#dirSeg').onclick = e => { const b = e.target.closest('[data-d]'); if (b) { S.dkey = b.dataset.d; store.set('dkey', S.dkey); renderHome(); } };
+  $('#roleSeg').onclick = e => { const b = e.target.closest('[data-r]'); if (b) { S.roleId = b.dataset.r; store.set('role', S.roleId); renderHome(); } };
+  $('#fast').onchange = e => { S.fast = e.target.checked; store.set('fast', S.fast); };
+  $('#start').onclick = () => startExercise();
+  $('#toBook').onclick = () => renderBook();
+  $('#toRef').onclick = () => renderRef();
+  heroRadar();
+}
+
+function heroRadar() {
+  const c = $('#heroRadar'); if (!c) return; const g = c.getContext('2d'); const W = 600;
+  const sc = buildScenario(S.kind, S.dkey, 7); let a = 0;
+  const draw = () => {
+    if (!document.body.contains(c)) return;
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, W);
+    const k = W / 760, ox = 613 - 380, oy = 575 - 380; g.setTransform(k, 0, 0, k, -ox * k, -oy * k);
+    drawMap(g, k, null);
+    const t = sc.v.t0 + ((performance.now() / 600) % 60);
+    const [p] = sc.track.pos(t); drawTarget(g, k, p, sc.v.cs.replace('-', ''), null);
+    g.setTransform(1, 0, 0, 1, 0, 0); a = (performance.now() / 2200) % (Math.PI * 2);
+    const grd = g.createConicGradient ? g.createConicGradient(a, W / 2, W / 2) : null;
+    if (grd) { grd.addColorStop(0, hexA(cssv('--accent'), .28)); grd.addColorStop(.08, hexA(cssv('--accent'), 0)); grd.addColorStop(1, hexA(cssv('--accent'), 0)); g.fillStyle = grd; g.beginPath(); g.arc(W / 2, W / 2, W / 2, 0, 7); g.fill(); }
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) requestAnimationFrame(draw);
+  };
+  draw();
+}
+function hexA(hex, a) { const h = hex.replace('#', ''); if (h.length !== 6) return hex; const n = parseInt(h, 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; }
+
+// ═════ КАРТА / РАДАР ═════
+function drawMap(g, k, sess) {
+  const C = { route: cssv('--route'), grid: cssv('--radar-grid'), ink: cssv('--ink'), muted: cssv('--muted'), sector: cssv('--sector'), accent: cssv('--accent'), bad: cssv('--bad') };
+  const [cx, cy] = xy('LADOGA');
+  g.lineWidth = 1 / k; g.strokeStyle = C.grid;
+  for (let i = 1; i <= 14; i++) { g.beginPath(); g.arc(cx, cy, i * 50 * PX_PER_KM, 0, 7); g.stroke(); }
+  // коридоры — широкие полупрозрачные полосы, как на экране КДТ
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  for (const pts of Object.values(AIRWAYS)) { const ps = pts.filter(n => POINTS[n]).map(xy); if (ps.length < 2) continue;
+    g.strokeStyle = hexA(C.route, .22); g.lineWidth = 12; g.beginPath(); ps.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke();
+    g.strokeStyle = hexA(C.route, .8); g.lineWidth = 1.2 / Math.max(k, .5); g.stroke(); }
+  // границы секторов
+  g.setLineDash([10, 7]); g.strokeStyle = hexA(C.bad, .7); g.lineWidth = 1.3 / Math.max(k, .6);
+  for (const line of SECTORS.boundaries) { g.beginPath(); line.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke(); }
+  g.setLineDash([]);
+  const ac = SECTORS.approach_circle; g.beginPath(); g.arc(ac.center[0], ac.center[1], ac.r, 0, 7); g.fillStyle = hexA(C.sector, .35); g.fill(); g.stroke();
+  // подписи секторов
+  g.font = `600 ${15 / Math.max(k, .7)}px ${cssv('--font-ui')}`; g.textAlign = 'center';
+  const own = sess ? (sess.role.unit === 'ДПП' ? `ПОДХОД-${sess.sc.d.appN}` : `РЦ-${sess.sc.d.accN}`) : '';
+  for (const l of SECTORS.labels) { const isOwn = own && l.text.startsWith(own); g.fillStyle = isOwn ? C.accent : hexA(C.bad, .75); g.fillText(l.text.replace('.', ','), l.xy[0], l.xy[1]); }
+  // точки
+  g.textAlign = 'left'; g.font = `500 ${11.5 / Math.max(k, .75)}px ${cssv('--font-data')}`;
+  for (const [n, [x, y, t]] of Object.entries(POINTS)) {
+    if (t === 'gate') { g.strokeStyle = C.muted; g.lineWidth = 1.4 / k; g.beginPath(); g.arc(x, y, 7, 0, 7); g.stroke(); g.beginPath(); g.arc(x, y, 3, 0, 7); g.stroke(); continue; }
+    if (t === 'airport') { g.strokeStyle = C.accent; g.lineWidth = 2 / k; g.beginPath(); g.arc(x, y, 6, 0, 7); g.stroke(); g.fillStyle = C.accent; g.beginPath(); g.arc(x, y, 2.5, 0, 7); g.fill(); g.fillText('LDM', x + 9, y - 8); continue; }
+    if (n.startsWith('UNNAMED')) continue;
+    g.strokeStyle = C.ink; g.lineWidth = 1.3 / k;
+    if (t === 'vor') { g.beginPath(); g.arc(x, y, 5, 0, 7); g.stroke(); g.beginPath(); g.arc(x, y, 1.6, 0, 7); g.fillStyle = C.ink; g.fill(); }
+    else if (t === 'ndb') { g.beginPath(); g.arc(x, y, 3.5, 0, 7); g.stroke(); }
+    else { g.beginPath(); g.moveTo(x, y - 5.5); g.lineTo(x + 4.8, y + 3); g.lineTo(x - 4.8, y + 3); g.closePath(); g.stroke(); }
+    g.fillStyle = t === 'vor' ? C.bad : C.ink; if (k > .55 || ['LADOGA'].includes(n)) g.fillText(n === 'MININ2' ? 'MININ' : n, x + 7, y - 6);
+  }
+}
+function drawTarget(g, k, p, label, info, trail) {
+  const col = cssv('--target'); const [x, y] = p;
+  if (trail) trail.forEach(([tx, ty], i) => { g.fillStyle = hexA(col, .15 + .1 * i); g.beginPath(); g.arc(tx, ty, 2.2 / k, 0, 7); g.fill(); });
+  g.strokeStyle = col; g.lineWidth = 2 / k; g.strokeRect(x - 5 / k, y - 5 / k, 10 / k, 10 / k);
+  if (info && info.hdg != null) { const a = info.hdg * Math.PI / 180, L = 34 / k; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.sin(a) * L, y - Math.cos(a) * L); g.stroke(); }
+  g.lineWidth = 1 / k; g.beginPath(); g.moveTo(x + 6 / k, y - 6 / k); g.lineTo(x + 22 / k, y - 22 / k); g.stroke();
+  g.fillStyle = col; g.font = `600 ${12.5 / k}px ${cssv('--font-data')}`; g.textAlign = 'left';
+  g.fillText(label, x + 24 / k, y - 34 / k);
+  if (info) { g.font = `500 ${12 / k}px ${cssv('--font-data')}`; g.fillText(info.l2, x + 24 / k, y - 20 / k); }
+}
+
+const R = { k: 1, cx: 613, cy: 640, drag: null };
+function radarFit() {
+  const sc = S.sess.sc; const pts = sc.track.pts.concat([xy('LADOGA')]);
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]); const c = $('#radar'); if (!c) return;
+  const w = c.clientWidth, h = c.clientHeight; R.cx = (Math.min(...xs) + Math.max(...xs)) / 2; R.cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  R.k = Math.min(w / (Math.max(...xs) - Math.min(...xs) + 160), h / (Math.max(...ys) - Math.min(...ys) + 160)); R.k = Math.max(.35, Math.min(R.k, 2.2));
+}
+function drawRadar() {
+  const c = $('#radar'); if (!c || !S.sess) return; const dpr = devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight; if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+  const g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = cssv('--radar-bg'); g.fillRect(0, 0, c.width, c.height);
+  const k = R.k * dpr; g.setTransform(k, 0, 0, k, c.width / 2 - R.cx * k, c.height / 2 - R.cy * k);
+  drawMap(g, R.k, S.sess);
+  const sess = S.sess, sc = sess.sc, t = S.simT; const st = sess.step || sc.steps[sc.steps.length - 1];
+  const [p, hdg] = sc.track.pos(t); const air = !(sc.kind === 'dep' && t < sc.v.tDep) && !(sc.kind === 'arr' && t >= sc.v.tLand);
+  const trail = []; for (let i = 5; i >= 1; i--) trail.push(sc.track.pos(t - i * .5)[0]);
+  const fl = curFl(); const cfl = st.cfl && st.cfl !== fl ? ' ' + String(st.cfl).padStart(3, '0') : '';
+  const gs = sc.kind === 'dep' ? (t < sc.v.tDep ? 0 : t < sc.v.tEntry ? 420 : 760) : (t < sc.v.tEntry ? 760 : 420);
+  drawTarget(g, R.k, p, sc.v.cs.replace('-', ''), air ? { hdg, l2: `${String(fl).padStart(3, '0')}${cfl}  ${Math.round(gs / 10)}` } : { l2: 'НА ЗЕМЛЕ' }, air ? trail : null);
+  const [az, dist] = azDist(p); const ri = $('#rinfo');
+  if (ri) ri.innerHTML = `${sc.v.cs} · ${sc.v.type}<br>LDM ${String(az).padStart(3, '0')}° / ${dist} км<br>сквок ${sc.v.sq}`;
+}
+function curFl() { const st = S.sess.step || S.sess.sc.steps.at(-1); return st.fl; }
+function bindRadar() {
+  const c = $('#radar'); if (!c) return;
+  c.onpointerdown = e => { R.drag = [e.clientX, e.clientY, R.cx, R.cy]; c.setPointerCapture(e.pointerId); };
+  c.onpointermove = e => { if (!R.drag) return; R.cx = R.drag[2] - (e.clientX - R.drag[0]) / R.k; R.cy = R.drag[3] - (e.clientY - R.drag[1]) / R.k; drawRadar(); };
+  c.onpointerup = () => R.drag = null;
+  c.onwheel = e => { e.preventDefault(); R.k = Math.max(.3, Math.min(4, R.k * (e.deltaY < 0 ? 1.15 : .87))); drawRadar(); };
+}
+
+// ═════ УПРАЖНЕНИЕ ═════
+function startExercise(seed) {
+  lastStage = null; closePop();
+  S.sess = new Session({ kind: S.kind, dkey: S.dkey, roleId: S.roleId, seed });
+  const sess = S.sess, d = sess.sc.d;
+  S.simT = sess.sc.steps[0].t; S.gsector = sess.sector || `РЦ-${d.accN}`; S.tsector = S.gsector;
+  S.screen = sess.role.graph ? 'graph' : sess.role.table ? 'table' : 'radar'; S.view = 'ex'; tg.back(true);
+  app.innerHTML = `<div class="wrap" style="height:100%;padding-block:0 0">
+  <header class="top"><div class="brand">ЛАДОГА <small>${esc(sess.role.title)}</small></div>
+    <span class="chip exchip"><b>${esc(sess.sc.title)}</b>&nbsp;${esc(sess.sc.sub)}</span><span class="sp"></span>
+    <span class="clock" id="clock">${clockStr(S.simT)}</span>
+    <button class="btn sm" id="voice" title="Озвучивать реплики бота" aria-pressed="false">Голос</button>
+    <button class="btn sm" id="quit">Сдать смену</button></header>
+  <main class="ex">
+    <section class="screen" aria-label="Экран">
+      <div class="tabs" role="tablist" id="tabs">
+        <button class="tab" role="tab" data-s="radar">Радар</button>
+        <button class="tab" role="tab" data-s="graph">График ПК<span class="dot" id="gdot" hidden></span></button>
+        <button class="tab" role="tab" data-s="table">Табличный<span class="dot" id="tdot" hidden></span></button>
+        <button class="tab" role="tab" data-s="strip">Рейс</button>
+      </div>
+      <div class="view" id="view"></div>
+    </section>
+    <section class="radio" aria-label="Эфир">
+      <div class="rhead"><span class="freq" id="freq">—</span><span class="st" id="stage"></span><span class="sp" style="flex:1"></span>
+        <label class="chip" style="font-size:12px"><input type="checkbox" id="fast2" ${S.fast ? 'checked' : ''}> быстро</label></div>
+      <div class="log" id="log" aria-live="polite"></div>
+      <div class="ptt" id="ptt"><div class="waiting">Эфир…</div></div>
+    </section>
+  </main></div>`;
+  $('#tabs').onclick = e => { const b = e.target.closest('[data-s]'); if (b) { S.screen = b.dataset.s; renderScreen(); } };
+  $('#quit').onclick = () => showSummary(true);
+  $('#fast2').onchange = e => { S.fast = e.target.checked; store.set('fast', S.fast); };
+  $('#voice').onclick = () => { S.voice = !S.voice; $('#voice').setAttribute('aria-pressed', S.voice); $('#voice').textContent = S.voice ? 'Голос: вкл' : 'Голос'; if (!S.voice && window.speechSynthesis) speechSynthesis.cancel(); };
+  renderScreen(); pump();
+}
+
+function renderScreen() {
+  document.querySelectorAll('#tabs .tab').forEach(t => t.setAttribute('aria-selected', t.dataset.s === S.screen));
+  const v = $('#view'); const sess = S.sess;
+  if (S.screen === 'radar') {
+    v.innerHTML = `<canvas id="radar" aria-label="Радар"></canvas><div class="rctl"><button id="zin" aria-label="Приблизить">+</button><button id="zout" aria-label="Отдалить">−</button><button id="zfit" aria-label="Показать маршрут">⌖</button></div><div class="rinfo" id="rinfo"></div>`;
+    radarFit(); bindRadar(); drawRadar();
+    $('#zin').onclick = () => { R.k *= 1.25; drawRadar(); }; $('#zout').onclick = () => { R.k /= 1.25; drawRadar(); }; $('#zfit').onclick = () => { radarFit(); drawRadar(); };
+  } else if (S.screen === 'graph') renderGraphView();
+  else if (S.screen === 'table') renderTable();
+  else renderStrip();
+  updateDots();
+}
+function updateDots() {
+  if (!S.sess) return; const b = S.sess.blockingTasks();
+  const gd = $('#gdot'), td = $('#tdot'); if (gd) gd.hidden = !b.some(t => t.type !== 'table'); if (td) td.hidden = !b.some(t => t.type === 'table');
+}
+
+async function animateClock(to) {
+  const from = S.simT; if (to <= from + .01) return;
+  const dur = S.fast ? 150 : Math.min(1400, 250 + (to - from) * 160); const t0 = performance.now();
+  while (true) { const f = Math.min(1, (performance.now() - t0) / dur); S.simT = from + (to - from) * f; tick(); if (f >= 1) break; await sleep(30); }
+}
+function tick() { const c = $('#clock'); if (c) c.textContent = clockStr(S.simT); if (S.screen === 'radar') drawRadar(); }
+
+async function pump() {
+  if (S.pumping) return; S.pumping = true;
+  try {
+    while (S.view === 'ex') {
+      const e = S.sess.next(); if (!e) break;
+      if (e.type === 'line') { await animateClock(e.step.t); stageHeader(e.step); addLine(e.step); speak(e.step); await sleep(S.fast ? 120 : Math.min(1700, 450 + e.step.text.length * 13)); }
+      else if (e.type === 'prompt') { await animateClock(e.step.t); stageHeader(e.step); showPrompt(e); break; }
+      else if (e.type === 'graph-wait') { showGraphWait(e.tasks); break; }
+      else if (e.type === 'end') { showSummary(false); break; }
+    }
+  } finally { S.pumping = false; updateDots(); if (S.screen === 'graph') renderGraph(); if (S.screen === 'table') renderTable(); }
+}
+let lastStage = null;
+function stageHeader(st) {
+  if (st.stage === lastStage) return; lastStage = st.stage;
+  const sess = S.sess; const log = $('#log');
+  log.insertAdjacentHTML('beforeend', `<div class="sep">${esc(sess.stageTitle(st.stage))}</div>`);
+  $('#freq').textContent = sess.stageTitle(st.stage).split('·')[1]?.trim() || '';
+  $('#stage').textContent = sess.stageTitle(st.stage).split('·')[0].trim();
+}
+function lineHtml(st, cls = '', who = null) {
+  const sess = S.sess; const sp = who || sess.unitLabel(st.speaker);
+  const k = st.kind === 'coord' ? 'coord' : st.speaker === 'ЭВС' ? 'evs' : '';
+  return `<div class="ln ${k} ${cls}"><div class="who"><b>${esc(st.speaker === 'ЭВС' ? 'ЭВС' : sp)}</b>${mm(st.t)}′${st.kind === 'coord' ? ' ☎' : ''}</div><div class="tx">${esc(showText(st.text))}</div></div>`;
+}
+function addLine(st) { const log = $('#log'); log.insertAdjacentHTML('beforeend', lineHtml(st)); log.scrollTop = log.scrollHeight; }
+function speak(st) {
+  if (!S.voice || !window.speechSynthesis) return;
+  const u = new SpeechSynthesisUtterance(showText(st.text).replace(/–/g, ',').replace(/(\d),(\d)/g, '$1 и $2')); u.lang = 'ru-RU'; u.rate = 1.12; speechSynthesis.speak(u);
+}
+
+function showPrompt(e) {
+  const sess = S.sess, st = e.step; const p = $('#ptt');
+  p.innerHTML = `<div class="cue"><span class="to">${esc(sess.unitLabel(st.speaker))} → ${esc(sess.unitLabel(st.listener))}${st.kind === 'coord' ? ' ☎' : ''}</span><span>${esc(e.cue)}</span>
+    <span class="sp" style="flex:1"></span><button class="btn sm ghost" id="hint">Подсказка</button><button class="btn sm ghost" id="skip">Эталон и дальше</button><div class="hintbox" id="hb" hidden></div></div>
+    <div class="inrow"><textarea id="say" rows="1" placeholder="Передача в эфир… Enter — передать" autocomplete="off"></textarea><button class="tx-btn" id="tx">ПЕРЕДАТЬ</button></div>`;
+  const ta = $('#say'); ta.focus({ preventScroll: true });
+  ta.oninput = () => { ta.style.height = 'auto'; ta.style.height = Math.min(140, ta.scrollHeight) + 'px'; };
+  ta.onkeydown = ev => { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); transmit(); } };
+  $('#tx').onclick = transmit;
+  $('#hint').onclick = () => { const h = sess.hint(); if (!h) return; const hb = $('#hb'); hb.hidden = false; hb.textContent = (h.lvl === 1 ? 'Ключевые элементы: ' : 'Эталон: ') + h.text; };
+  $('#skip').onclick = () => { const s = sess.skip(); if (!s) return; $('#log').insertAdjacentHTML('beforeend', lineHtml(s, 'me').replace('</div></div>', '</div><div class="fb"><span class="w">показан эталон</span></div></div>')); waitMsg(); pump(); };
+}
+function waitMsg(t = 'Эфир…') { $('#ptt').innerHTML = `<div class="waiting">${esc(t)}</div>`; }
+function transmit() {
+  const ta = $('#say'); const text = ta.value.trim(); if (!text) return;
+  const sess = S.sess, st = sess.step; const res = sess.submit(text); if (!res) return;
+  const fb = res.ok ? `<span class="g">✓ принято</span>${res.warnings.map(w => `<span class="w">${esc(w)}</span>`).join('')}${res.sim < .8 ? `<span class="ref">ФРО: ${esc(showText(st.text))}</span>` : ''}`
+    : res.errors.map(x => `<span class="e">${esc(x)}</span>`).join('');
+  const me = { ...st, text: text }; const log = $('#log');
+  log.insertAdjacentHTML('beforeend', lineHtml(me, 'me').replace(/<\/div><\/div>$/, `</div><div class="fb">${fb}</div></div>`)); log.scrollTop = log.scrollHeight;
+  if (res.ok) { waitMsg(); pump(); } else { ta.select(); }
+}
+
+// ═════ ГРАФИК ПК (визуализированный, раздел 3.3 методички) ═════
+const G = { col: 74, left: 48, top: 64, mp: 15, pop: null };
+function graphSectors() { const d = S.sess.sc.d; return [`РЦ-${d.accN}`, `ДПП-${d.appN}`]; }
+function renderGraphView() {
+  const v = $('#view'); const sess = S.sess; const mine = sess.role.graph;
+  v.innerHTML = `<div class="gwrap"><div class="gbar">
+    ${graphSectors().map(s => `<button class="tool" data-gs="${s}" aria-pressed="${S.gsector === s}">${s}</button>`).join('')}
+    <span style="width:10px"></span>
+    ${mine ? [['cut', '╲ отсечка'], ['L', 'Л'], ['fl', 'FL эшелон'], ['check', '✓ галочка']].map(([k, n]) => `<button class="tool" data-tool="${k}" aria-pressed="${S.tool === k}">${n}</button>`).join('') : '<span class="waiting">График ведёт ПК (бот). Возьмите позицию ПК, чтобы вести его самому.</span>'}
+    <div class="task" id="gtask"></div></div>
+    <div class="gscroll" id="gscroll"><svg id="graph" xmlns="http://www.w3.org/2000/svg"></svg></div><div class="gmsg" id="gmsg" style="opacity:0"></div></div>`;
+  v.querySelector('.gbar').onclick = e => { const s = e.target.closest('[data-gs]'); if (s) { S.gsector = s.dataset.gs; renderGraphView(); return; }
+    const t = e.target.closest('[data-tool]'); if (t) { S.tool = t.dataset.tool; v.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === S.tool)); } };
+  renderGraph();
+  $('#graph').onclick = graphClick;
+}
+function gTimes(sector) {
+  const ts = S.sess.tasks.filter(t => t.sector === sector && t.tm != null).map(t => t.tm);
+  const lo = Math.floor((Math.min(...ts, S.sess.sc.v.t0 + 4) - 4) / 5) * 5, hi = Math.ceil((Math.max(...ts) + 6) / 5) * 5; return [lo, hi];
+}
+function podX(sector, pod) { const i = GRAPH_PODS[sector].indexOf(pod); return G.left + G.col * (i + .5); }
+const tY = (t, lo) => G.top + (t - lo) * G.mp;
+// координата X линии графика ВС в момент t (по всем отсечкам на ПОД сектора)
+function pathX(sector, t) {
+  const cuts = S.sess.tasks.filter(x => x.sector === sector && x.type === 'cut').sort((a, b) => a.tm - b.tm);
+  if (cuts.length < 2) return cuts.length ? podX(sector, cuts[0].pod) : G.left;
+  let a = cuts[0], b = cuts[1];
+  for (let i = 0; i < cuts.length - 1; i++) if (t >= cuts[i].tm) { a = cuts[i]; b = cuts[i + 1]; }
+  const xa = podX(sector, a.pod), xb = podX(sector, b.pod); return xa + (xb - xa) * (t - a.tm) / ((b.tm - a.tm) || 1);
+}
+function renderGraph() {
+  const svg = $('#graph'); if (!svg) return; const sess = S.sess, sector = S.gsector, pods = GRAPH_PODS[sector];
+  const sc = $('#gscroll'); G.col = Math.max(54, Math.min(96, ((sc?.clientWidth || 800) - G.left - 50) / pods.length));
+  const [lo, hi] = gTimes(sector); const W = G.left + G.col * pods.length + 50, H = tY(hi, lo) + 24;
+  svg.setAttribute('width', W); svg.setAttribute('height', H); svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const ink = '#1d1a2c', grid = '#b7b3c4', red = '#d0263a', or = '#e0722a';
+  let s = `<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>`;
+  for (let t = lo; t <= hi; t++) { const y = tY(t, lo), major = t % 5 === 0;
+    s += `<line x1="${G.left - 6}" x2="${W - 40}" y1="${y}" y2="${y}" stroke="${major ? '#3a3650' : grid}" stroke-width="${major ? 1.2 : .6}"/>`;
+    if (major) s += `<text x="${G.left - 10}" y="${y + 4}" text-anchor="end" font-size="12" fill="${ink}">${mm(t)}</text><text x="${W - 36}" y="${y + 4}" font-size="12" fill="${ink}">${mm(t)}</text>`; }
+  pods.forEach((p, i) => { const x = podX(sector, p), y0 = 22 + (i % 2) * 16;
+    s += `<line x1="${x}" x2="${x}" y1="${y0 + 8}" y2="${H - 6}" stroke="${ink}" stroke-width="1.6"/><path d="M${x - 5} ${y0 + 4}h10l-5 6z" fill="${ink}"/>
+      <text x="${x}" y="${y0}" text-anchor="middle" font-size="12" font-weight="600" fill="${ink}" font-family="IBM Plex Sans Condensed, sans-serif">${p === 'LADOGA' ? 'LADOGA' : p}</text>`; });
+  const T = sess.tasks.filter(t => t.sector === sector && t.done);
+  const cuts = T.filter(t => t.type === 'cut').sort((a, b) => a.tm - b.tm), lvls = T.filter(t => t.type === 'lvl');
+  const pts = cuts.map(c => ({ x: podX(sector, c.pod), y: tY(c.tm, lo), t: c })).concat(lvls.map(c => ({ x: pathX(sector, c.tm), y: tY(c.tm, lo), t: c }))).sort((a, b) => a.y - b.y);
+  if (pts.length > 1) s += `<polyline points="${pts.map(p => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="${ink}" stroke-width="2.2"/>`;
+  // красные линии времени набора/снижения
+  for (const l of lvls.filter(l => l.red)) { const from = lvls.find(o => !o.red && o.tm < l.tm) || cuts[0]; if (!from) continue;
+    const x1 = from.pod ? podX(sector, from.pod) : pathX(sector, from.tm), y1 = tY(from.tm, lo), x2 = pathX(sector, l.tm), y2 = tY(l.tm, lo);
+    s += `<line x1="${x1}" y1="${y1 + 6}" x2="${x2}" y2="${y2 + 6}" stroke="${red}" stroke-width="2"/>`; }
+  const slash = (x, y) => `<line x1="${x - 8}" y1="${y - 8}" x2="${x + 8}" y2="${y + 8}" stroke="${ink}" stroke-width="2"/>`;
+  for (const p of pts) { s += slash(p.x, p.y); if (p.t.type === 'lvl') s += `<text x="${p.x - 4}" y="${p.y - 10}" font-size="11.5" font-weight="600" fill="${ink}">FL${String(p.t.fl).padStart(3, '0')}</text>`; }
+  for (const t of T) {
+    const x = t.pod ? podX(sector, t.pod) : 0, c = cuts.find(c => c.pod === t.pod); const y = c ? tY(c.tm, lo) : 0;
+    if (t.type === 'L' && c) s += `<text x="${x + 6}" y="${y - 9}" font-size="13" font-weight="700" fill="${ink}">л</text>`;
+    if (t.type === 'check' && c) s += `<path d="M${x - 22} ${y + 1}l5 7l9 -14" fill="none" stroke="${ink}" stroke-width="2"/>`;
+    if (t.type === 'fl' && c) s += `<text x="${x - 50}" y="${y - 6}" font-size="11.5" font-weight="600" fill="${ink}">FL${String(t.fl).padStart(3, '0')}</text>`;
+  }
+  // формуляр у первой отсечки (рис. 10)
+  const form = T.find(t => t.type === 'form'); const first = sess.tasks.filter(t => t.sector === sector && t.type === 'cut')[0];
+  if (form && first && first.done) { const x = podX(sector, first.pod), y = tY(first.tm, lo), f = form.vals || form.fields;
+    const right = x < W / 2; const ax = right ? x + 10 : x - 10, an = right ? 'start' : 'end';
+    s += `<text x="${ax}" y="${y - 4}" text-anchor="${an}" font-size="12.5" font-weight="700" fill="${ink}">${esc(f.cs.replace('-', ''))}  FL${esc(String(f.fl || f.signed || '').padStart(3, '0'))}</text>
+      <line x1="${right ? x + 8 : x - 150}" x2="${right ? x + 150 : x - 8}" y1="${y + 1}" y2="${y + 1}" stroke="${ink}" stroke-width="1.2"/>
+      <text x="${ax}" y="${y + 15}" text-anchor="${an}" font-size="12" fill="${ink}">${esc(String(sess.sc.v.reg))}  ${f.signed ? 'FL' + esc(f.signed) : ''}  ${esc(f.dest)}</text>`; }
+  // активная задача — оранжевая выноска (только подсказка позиции после ошибки не даём)
+  svg.innerHTML = s;
+  // строка задачи
+  const box = $('#gtask'); if (!box) return;
+  const pend = sess.blockingTasks().filter(t => t.sector === sector && t.type !== 'table');
+  if (!sess.role.graph || sess.sector !== sector) { box.innerHTML = ''; return; }
+  if (!pend.length) { box.innerHTML = `<span class="ok">график в порядке</span>`; return; }
+  const t = pend[0];
+  const ask = { cut: 'Поставьте отсечку по услышанному', lvl: 'Отсечка на линии графика + эшелон', L: 'Отметка «Л» — опознан / проход ПОД', check: 'Галочка — согласовано', fl: 'Эшелон над отсечкой', form: 'Заполните формуляр' }[t.type];
+  box.innerHTML = `<span class="pill">ПК</span><span>${ask}</span><button class="btn sm ghost" id="ghint">Подсказка</button>`;
+  $('#ghint').onclick = () => gmsg(t.hint || '', false, 3500);
+  const want = t.type === 'lvl' ? 'cut' : t.type; if (want !== 'form' && S.tool !== want) { S.tool = want; document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === S.tool)); }
+  if (t.type === 'form') openForm(t);
+}
+function gmsg(text, bad, ms = 2600) { const m = $('#gmsg'); if (!m) return; m.textContent = text; m.className = 'gmsg' + (bad ? ' bad' : ''); m.style.opacity = 1; clearTimeout(gmsg.t); gmsg.t = setTimeout(() => m.style.opacity = 0, ms); }
+function graphClick(ev) {
+  const sess = S.sess; if (!sess.role.graph || S.gsector !== sess.sector) return;
+  const svg = $('#graph'), r = svg.getBoundingClientRect(); const x = ev.clientX - r.left, y = ev.clientY - r.top;
+  const pods = GRAPH_PODS[S.gsector], [lo] = gTimes(S.gsector);
+  const i = Math.floor((x - G.left) / G.col); const pod = pods[i] && Math.abs(x - podX(S.gsector, pods[i])) < G.col * .45 ? pods[i] : null;
+  const tm = Math.round(lo + (y - G.top) / G.mp);
+  const res = sess.tryGraph(S.tool, pod, tm, S.gsector);
+  if (!res.ok) { gmsg(res.msg, true); return; }
+  if (res.needFl) { openFl(res.needFl, x, y); return; }
+  gmsg(`✓ ${TOOL_NAMES[S.tool]}${pod ? ' · ' + pod : ''} ${S.tool === 'cut' ? mm(tm) + '′' : ''}`);
+  afterGraph();
+}
+function afterGraph() { renderGraph(); updateDots(); if (!S.sess.blockingTasks().length) pump(); }
+function openFl(task, x, y) {
+  closePop(); const sc = $('#gscroll'); const p = document.createElement('div'); p.className = 'pop';
+  p.style.left = Math.min(x + 12, sc.clientWidth - 330) + 'px'; p.style.top = (y - sc.scrollTop + 40) + 'px';
+  p.innerHTML = `<label>Эшелон над отсечкой<input id="flin" inputmode="numeric" placeholder="например 180" autocomplete="off"></label><div class="err" id="flerr"></div><div class="row"><button class="btn sm" id="flc">Отмена</button><button class="btn sm pri" id="flok">Записать</button></div>`;
+  $('#view').appendChild(p); G.pop = p; $('#flin').focus();
+  const ok = () => { const r = S.sess.confirmFl(task, ($('#flin').value.match(/\d+/) || [''])[0]); if (!r.ok) { $('#flerr').textContent = r.msg; return; } closePop(); gmsg('✓ эшелон записан'); afterGraph(); };
+  $('#flok').onclick = ok; $('#flin').onkeydown = e => { if (e.key === 'Enter') ok(); }; $('#flc').onclick = closePop;
+}
+function closePop() { if (G.pop) { G.pop.remove(); G.pop = null; } }
+function openForm(task) {
+  if (G.pop && G.pop.dataset.form) return; closePop();
+  const p = document.createElement('div'); p.className = 'pop'; p.dataset.form = 1; p.style.left = '12px'; p.style.top = '56px';
+  p.innerHTML = `<b>Формуляр ВС (рис. 10)</b>${Object.keys(task.fields).map(k => `<label>${FORM_LABELS[k]}<input id="ff_${k}" autocomplete="off"></label>`).join('')}
+    <div class="err" id="fferr"></div><div class="row"><button class="btn sm pri" id="ffok">Записать формуляр</button></div>`;
+  $('#view').appendChild(p); G.pop = p; p.querySelector('input').focus();
+  $('#ffok').onclick = () => { const vals = {}; Object.keys(task.fields).forEach(k => vals[k] = $('#ff_' + k).value);
+    const r = S.sess.submitForm(task, vals); if (!r.ok) { $('#fferr').textContent = r.msg; return; } closePop(); gmsg('✓ формуляр записан'); afterGraph(); };
+}
+function showGraphWait(tasks) {
+  const t = tasks[0]; const isTable = t.type === 'table';
+  waitMsg(isTable ? 'Запишите борт в табличный график' : 'ПК: сделайте отметку на графике');
+  if (S.screen !== (isTable ? 'table' : 'graph')) { S.screen = isTable ? 'table' : 'graph'; if (isTable) S.tsector = t.sector; else S.gsector = t.sector; renderScreen(); }
+  else if (isTable) renderTable(); else renderGraph();
+}
+
+// ═════ ТАБЛИЧНЫЙ ГРАФИК (табл. 16) ═════
+function renderTable() {
+  const v = $('#view'); if (S.screen !== 'table' || !v) return; const sess = S.sess, sector = S.tsector || graphSectors()[0];
+  const rows = sess.tasks.filter(t => t.type === 'table' && t.sector === sector);
+  const pend = rows.find(t => !t.done && t.after < sess.i && t.human);
+  const tr = t => t.done || (!t.human && t.after < sess.i) ? `<tr><td>${esc(t.row.cs.replace('-', ''))}</td><td>${esc(t.row.fl.replace(/(\d+)/g, 'FL$1'))}</td><td>${esc(t.row.from)}</td><td>${esc(t.row.to)}</td><td>${t.row.times.map(x => mm(x) + '′').join(' ')}</td></tr>` : '';
+  v.innerHTML = `<div class="tbl"><div class="seg" style="margin-bottom:10px">${graphSectors().map(s => `<button class="tool" data-ts="${s}" aria-pressed="${sector === s}">${s}</button>`).join('')}</div>
+    <table><thead><tr><th>Позывной</th><th>Эшелон</th><th>Откуда</th><th>Куда</th><th>Примечание (t ПОД)</th></tr></thead><tbody>
+    ${rows.map(tr).join('')}
+    ${pend ? `<tr><td><input id="tb_cs" placeholder="SDM222"></td><td><input id="tb_fl" placeholder="FL170/FL290"></td><td><input id="tb_from" placeholder="CIROV"></td><td><input id="tb_to" placeholder="Москва"></td><td><input id="tb_times" placeholder="16 23 32"></td></tr>` : ''}
+    ${!rows.some(t => t.done || (!t.human && t.after < sess.i)) && !pend ? '<tr><td colspan="5" style="color:#6a6480">Борт ещё не передан в сектор</td></tr>' : ''}
+    </tbody></table>
+    ${pend ? `<div class="go" style="margin-top:10px"><button class="btn pri" id="tbok">Записать строку</button><span class="err" id="tberr" style="color:var(--bad)"></span></div>` : ''}
+    <p class="note">РЛК ведёт табличный график (табл. 12 методички): позывной, эшелон входа / подписанный, ПОД входа, пункт назначения и плановые времена прохода ПОД по порядку. Для прилёта последним идёт время прибытия на Ладогу.</p></div>`;
+  v.querySelector('.seg').onclick = e => { const b = e.target.closest('[data-ts]'); if (b) { S.tsector = b.dataset.ts; renderTable(); } };
+  if (pend) $('#tbok').onclick = () => { const vals = { cs: $('#tb_cs').value, fl: $('#tb_fl').value, from: $('#tb_from').value, to: $('#tb_to').value, times: $('#tb_times').value };
+    const r = sess.submitTable(pend, vals); if (!r.ok) { $('#tberr').textContent = r.msg; return; } renderTable(); updateDots(); if (!sess.blockingTasks().length) pump(); };
+}
+function renderStrip() {
+  const sess = S.sess, v = sess.sc.v, d = sess.sc.d, dep = sess.sc.kind === 'dep';
+  const pts = dep ? [['Взлёт', v.tDep], [d.entry, v.tEntry], [d.mid, v.tMid], [d.exit, v.tExit]] : [[d.exit, v.tExit], [d.mid, v.tMid], [d.entry, v.tEntry], ['Ладога', v.tArr]];
+  $('#view').innerHTML = `<div class="strip"><div class="card"><span class="big">${esc(v.cs)}</span><span>${esc(v.type)}${v.heavy ? ' · тяжёлый' : ''} · борт ${esc(v.reg)} · сквок ${v.sq}</span>
+    <span>${dep ? `Ладога → ${d.city} · ${d.sidFix} 2C · подписан FL${v.flCr}` : `${d.city} → Ладога · ${d.starFix} 2A · FL${v.flCr}, передача Подходу FL${v.flHand}`}</span>
+    <span>${pts.map(([n, t]) => `${n} ${mm(t)}′`).join(' · ')}</span></div>
+    <div class="card" style="border-color:var(--callout)"><span>ATIS ${v.atis} · QNH ${v.qnh} · ${esc(v.wind)}</span><span>${dep ? 'Стоянка' : 'Стоянка прибытия'} ${v.stand}${dep ? '' : ' · РД ' + v.twy}</span></div>
+    <div class="card" style="border-color:var(--muted)"><span>Связь по маршруту</span><span>${dep ? `Деливери 118,9 → Руление 119,0 → Старт 118,1 → Круг 120,6 → Подход-${d.appN} ${d.appFreq} → Контроль РЦ-${d.accN} ${d.accFreq} → ${d.adj} ${d.adjFreq}` : `${d.adj} ${d.adjFreq} → РЦ-${d.accN} ${d.accFreq} → Подход-${d.appN} ${d.appFreq} → Круг 120,6 → Посадка 118,1 → Руление 119,0`}</span></div></div>`;
+}
+
+// ═════ ИТОГИ ═════
+function showSummary(early) {
+  const sess = S.sess; if (!sess) return; const m = sess.summary(); S.view = 'sum';
+  if (!early || m.n) { const h = store.get('history', []); h.push({ t: Date.now(), grade: m.grade, role: S.roleId, kind: S.kind }); store.set('history', h.slice(-50)); }
+  const el = document.createElement('div'); el.className = 'modal';
+  el.innerHTML = `<div class="sheet" role="dialog" aria-label="Итоги смены"><div style="display:flex;gap:16px;align-items:center"><div class="grade">${m.grade}</div><div><b style="font-size:18px">${early ? 'Смена сдана досрочно' : 'Смена окончена'}</b><br><span class="waiting">${esc(sess.sc.title)} · ${esc(sess.role.title)}</span></div></div>
+    <div class="kv"><div><b>${m.first}/${m.n}</b><span>фраз с первой попытки</span></div><div><b>${m.pct}%</b><span>точность фразеологии</span></div>
+    ${m.gPct !== null ? `<div><b>${m.gPct}%</b><span>график без ошибок (${m.gDone}/${m.gTotal})</span></div>` : ''}<div><b>${m.hints}</b><span>подсказок</span></div><div><b>${m.skipped}</b><span>пропущено</span></div></div>
+    ${m.errs.length ? `<div><b>Разбор ошибок</b><ul class="errs">${m.errs.map(e => `<li>${esc(e.e)}<br><i>«${esc(e.said)}»</i></li>`).join('')}</ul></div>` : '<div class="waiting">Ошибок во фразеологии нет.</div>'}
+    <div class="go"><button class="btn pri" id="again">Ещё рейс</button><button class="btn" id="same">Повторить этот рейс</button><button class="btn ghost" id="home">На главную</button></div></div>`;
+  document.body.appendChild(el);
+  const close = () => el.remove();
+  $('#again', el).onclick = () => { close(); lastStage = null; startExercise(); };
+  $('#same', el).onclick = () => { close(); lastStage = null; startExercise(sess.seed); };
+  $('#home', el).onclick = () => { close(); lastStage = null; renderHome(); };
+}
+
+// ═════ СБОРНИК ФРО ═════
+const CANON_DEP = { cs: 'СДМ-122', type: 'Ил-76', heavy: true, reg: '76762', sq: '0720', stand: 135, atis: 'ALFA', wind: 'ветер 100 градусов 4 м/с (порывы 8 м/с)', qnh: 1023, flCr: 290, flApp: 210, t0: 0, tDep: 5, tEntry: 18, tMid: 27, tExit: 36 };
+const CANON_ARR = { cs: 'СДМ-122', type: 'Ту-134', heavy: false, reg: '65122', sq: '1234', stand: 152, atis: 'ALFA', wind: 'ветер 100 градусов, 4 м/с (порывы 8 м/с)', qnh: 1023, flCr: 320, flHand: 180, t0: 0, tExit: 10, tMid: 17, tEntry: 24, tArr: 34, tTod: 18, tLand: 50, twy: 'ALFA 3' };
+function renderBook(kind = 'dep', dkey = 'MOSCOW', hide = '') {
+  S.view = 'book'; tg.back(true);
+  const sc = buildScenario(kind, dkey, 1, kind === 'dep' ? CANON_DEP : CANON_ARR);
+  const sess = { unitLabel: u => u === 'ДПП' ? `ДПП` : u === 'РЦ' ? 'РЦ' : u === 'СМЕЖ' ? sc.d.adj : u };
+  let html = '', stage = null, i = 0; const steps = sc.steps;
+  while (i < steps.length) { const st = steps[i];
+    if (st.stage !== stage) { if (stage) html += '</div>'; stage = st.stage; html += `<h3 id="st-${stage}">${stage}</h3><div class="fro">`; }
+    if (st.kind === 'coord') { const a = st.speaker, b = st.listener; const rows = []; while (i < steps.length && steps[i].kind === 'coord' && [a, b].includes(steps[i].speaker)) { rows.push(steps[i]); i++; }
+      html += `</div><table class="ctab"><tr><th>${esc(sess.unitLabel(a))}</th><th>${esc(sess.unitLabel(b))}</th></tr>`;
+      for (let r = 0; r < rows.length; r += 2) html += `<tr><td class="${hide === a ? 'hid' : ''}">${r + 1}. ${esc(showText(rows[r].text))}</td><td class="${rows[r + 1] && hide === b ? 'hid' : ''}">${rows[r + 1] ? (r + 2) + '. ' + esc(showText(rows[r + 1].text)) : ''}</td></tr>`;
+      html += `</table><div class="fro">`; continue; }
+    const evs = st.speaker === 'ЭВС'; const hid = hide && (hide === st.speaker || (hide === 'Д' && !evs));
+    html += `<div class="s ${evs ? 'evs' : ''}">${evs ? 'ЭВС' : 'Д'}</div><div class="${evs ? 'evs' : ''} ${hid ? 'hid' : ''}">${esc(showText(st.text))}</div>`; i++; }
+  html += '</div>';
+  const stages = [...new Set(steps.map(s => s.stage))];
+  app.innerHTML = `<div class="wrap"><header class="top"><button class="btn ghost" id="back">← Назад</button><div class="brand">Сборник ФРО <small>2025 · ред. 2.1</small></div></header>
+  <section class="book"><nav class="toc" aria-label="Разделы">
+    <div class="seg"><button class="opt" data-k="dep" aria-pressed="${kind === 'dep'}"><b>Вылет</b></button><button class="opt" data-k="arr" aria-pressed="${kind === 'arr'}"><b>Прилёт</b></button></div>
+    <select id="bdir" class="btn">${Object.values(DIRECTIONS).map(d => `<option value="${d.key}" ${d.key === dkey ? 'selected' : ''}>${d.city} · РЦ-${d.accN}${d.key === 'MOSCOW' ? ' (как в ФРО)' : ''}</option>`).join('')}</select>
+    <select id="bhide" class="btn"><option value="">Показать всё</option><option value="Д" ${hide === 'Д' ? 'selected' : ''}>Заучивание: скрыть диспетчера</option><option value="ЭВС" ${hide === 'ЭВС' ? 'selected' : ''}>Заучивание: скрыть ЭВС</option></select>
+    ${stages.map(s => `<a href="#st-${s}">${s}</a>`).join('')}
+    <span class="waiting">Скрытые реплики открываются нажатием.</span></nav>
+    <article class="sheetpaper"><h2>Фразеология радиообмена на ${kind === 'dep' ? 'ВЫЛЕТ' : 'ПРИЛЁТ'}</h2>${html}</article></section></div>`;
+  $('#back').onclick = renderHome;
+  app.querySelector('.toc .seg').onclick = e => { const b = e.target.closest('[data-k]'); if (b) renderBook(b.dataset.k, dkey, hide); };
+  $('#bdir').onchange = e => renderBook(kind, e.target.value, hide);
+  $('#bhide').onchange = e => renderBook(kind, dkey, e.target.value);
+  app.querySelector('.sheetpaper').onclick = e => { const h = e.target.closest('.hid'); if (h) h.classList.remove('hid'); };
+  app.querySelectorAll('.toc a').forEach(a => a.onclick = e => { e.preventDefault(); document.getElementById(a.getAttribute('href').slice(1))?.scrollIntoView({ behavior: 'smooth' }); });
+}
+
+// ═════ СПРАВОЧНИК ═════
+const REF = {
+  'Частоты (табл. 6)': `ATIS ..................... 118,8
+VOLMET ................... 122,275
+Ладога-Деливери .......... 118,9
+Ладога-Руление (ДПР) ..... 119,0
+Ладога-Старт / Посадка ... 118,1
+Ладога-Круг (ДПК) ........ 120,6
+Ладога-Подход ДПП-1 ...... 129,8
+Ладога-Подход ДПП-2 ...... 125,2
+Ладога-Контроль РЦ-1 ..... 134,1
+Ладога-Контроль РЦ-2 ..... 135,6
+Ладога-Контроль РЦ-3 ..... 126,9
+Ладога-Контроль РЦ-4 ..... 120,9
+Аварийная ................ 121,5
+
+Москва-Контроль 127,5 · В.Луки-Контроль 134,3
+Рига-Контроль 133,2 · Таллин-Контроль 132,5
+Хельсинки-Контроль 121,3 · Петрозаводск 125,3
+Вологда-Контроль 134,6`,
+  'Структура пространства (п. 1.2)': `ДПР — РД до линии предв. старта, перрон, МС
+СДП — от предв. старта до ВПП; от ВПП до 200 м
+ПДП — с 20 км по ДРЛ, 0 – 2000 ft
+ДПК — R 40 км от КТА, 0 ft – FL050
+ДПП-1 (восток) ИПУ 360–179°, FL050 – FL240
+ДПП-2 (запад)  ИПУ 180–359°, FL050 – FL240
+РЦ-1 (СВ) ИПУ 360–134°, FL050 – UNL
+РЦ-2 (ЮВ) ИПУ 135–179°, FL050 – UNL
+РЦ-3 (ЮЗ) ИПУ 180–250°, FL050 – UNL
+РЦ-4 (СЗ) ИПУ 251–359°, FL050 – UNL
+
+ULLG: превышение 79 ft, ΔM = +11°
+ВПП 10R/28L, 10L/28R (МПУ 095/275); взлёт — 10L
+Высота перехода 3000 ft, эшелон перехода FL040
+Нижний безопасный в секторе Подхода — FL040`,
+  'Эшелоны и RVSM': `МПУ 0–179°   — нечётные: 170 190 210 … 290 310 330
+МПУ 180–359° — чётные:   180 200 220 … 300 320 340
+RVSM FL290–FL410: «Подтвердите разрешение RVSM»
+  → «Подтверждаю RVSM» (гос. ВС — «RVSM отсутствует»)
+Сквок 7500 — незаконное вмешательство (МС 146)`,
+  'График ПК (раздел 3)': `РЦ, ДПП: РЛК — таблица, ПК — графический
+ДПК: ПК — таблица;  СДП, ДПР — таблица
+Время идёт сверху вниз. ИПУ 360–179° — слева направо,
+ИПУ 180–359° — справа налево.
+Отсечка — косая черта, перпендикулярная линии графика.
+Точка — t факт по докладу ЭВС, «Л» — проход подтверждён
+на локаторе. Формуляр — у первой отсечки:
+  позывной  эшелон входа
+  борт  подписанный эшелон  пункт назначения
+Галочка — согласовано со смежным сектором.
+Красная линия — время набора / снижения.`,
+  'SID 2C (взлёт 10L)': `LG783 (не ниже 800 ft, не выше 2000 ft) → LG784 (≤210 kt) → …
+FORTU 2C: LG785 → VIKSE (FL040–050) → LG739 (≥FL060) → FORTU
+GORIN 2C: LG761 (≥FL050) → GORIN
+KORKI 2C: LG762 (≥FL060) → KORKI
+OREMI 2C: LG785 → VIKSE (FL040–050) → LG733 (≥FL060) → OREMI
+ORLON 2C: LG785 → VIKSE (FL040–050) → LG744 (≥FL060) → ORLON
+PELMI 2C: LG747 (≥FL060) → PELMI`,
+  'STAR 2A (ILS Z RWY 10R)': `FORTU 2A: LG715 (FL050–070) → LG739 (FL050) → LG717 → LDM (≤220 kt) → LG728 (3000 ft) → LG729
+KOPNA 2A: LG766 → LG760 (FL050) → LG718 → LDM → LG728 → LG729
+KORKI 2A: LG749 → LG762 (FL050) → LG718 → LDM → LG728 → LG729
+OREMI 2A: LG711 → LG733 (FL050) → LG717 → LDM → LG728 → LG729
+ORLON 2A: LG721 → LG744 (FL050) → LG717 → LDM → LG728 → LG729
+PELMI 2A: LG708 → LG747 (FL050) → LG718 → LDM → LG728 → LG729`,
+  'Переводные таблицы (9–11)': `1 kt = 1,852 км/ч: 220 kt ≈ 410 · 250 ≈ 460 · 270 ≈ 500 · 300 ≈ 560
+197 ft/min = 1 м/с: 1000 ft/min ≈ 5 м/с · 2000 ≈ 10 м/с
+1 nm = 1,852 км: 5 nm ≈ 9,3 · 10 nm ≈ 18,5 · 27 nm ≈ 50 км
+IAS по эшелонам: FL040–090 — 220 kt, FL100–190 — 250 kt, FL200–250 — 270 kt
+Δ 60 kt на одном эшелоне ≈ +1 nm (2 км) интервала в минуту`,
+};
+function renderRef() {
+  S.view = 'ref'; tg.back(true);
+  app.innerHTML = `<div class="wrap"><header class="top"><button class="btn ghost" id="back">← Назад</button><div class="brand">Справочник <small>методичка «Ладога»</small></div></header>
+  <section class="ref">${Object.entries(REF).map(([h, t]) => `<div><h3 style="margin:0 0 8px;font-size:15px">${esc(h)}</h3><pre>${esc(t)}</pre></div>`).join('')}</section></div>`;
+  $('#back').onclick = renderHome;
+}
+
+// ═════ TELEGRAM MINI APP ═════
+const tg = { w: null,
+  init() { if (!/tgWebApp/.test(location.hash + location.search)) return;
+    const s = document.createElement('script'); s.src = 'https://telegram.org/js/telegram-web-app.js';
+    s.onload = () => { const w = window.Telegram && Telegram.WebApp; if (!w) return; tg.w = w; w.ready(); w.expand();
+      try { w.setHeaderColor(cssv('--bg')); w.setBackgroundColor(cssv('--bg')); } catch (e) {}
+      document.documentElement.dataset.theme = w.colorScheme === 'dark' ? 'dark' : 'light';
+      w.BackButton.onClick(() => { document.querySelector('.modal')?.remove(); lastStage = null; renderHome(); });
+      tg.back(S.view !== 'home'); };
+    document.head.appendChild(s); },
+  back(on) { if (!tg.w) return; on ? tg.w.BackButton.show() : tg.w.BackButton.hide(); } };
+
+addEventListener('resize', () => { if (S.view === 'ex') { if (S.screen === 'radar') drawRadar(); if (S.screen === 'graph') renderGraph(); } });
+tg.init(); renderHome();
+</script></body></html>
